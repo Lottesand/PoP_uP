@@ -60,6 +60,69 @@ def recycle_bin():
     return img
 
 
+def browser():
+    img, d = canvas()
+    c, r = 128, 116
+    box = (c - r, c - r, c + r, c + r)
+    d.pieslice(box, 210, 330, fill=(219, 68, 55))
+    d.pieslice(box, 330, 450, fill=(244, 180, 0))
+    d.pieslice(box, 90, 210, fill=(15, 157, 88))
+    d.ellipse((c - 56, c - 56, c + 56, c + 56), fill=(255, 255, 255))
+    d.ellipse((c - 44, c - 44, c + 44, c + 44), fill=(66, 133, 244))
+    return img
+
+
+def notepad():
+    img, d = canvas()
+    d.rounded_rectangle((44, 36, 212, 232), 8, fill=(250, 250, 250), outline=(150, 160, 170), width=4)
+    vgrad(d, (46, 38, 211, 80), (80, 170, 240), (30, 120, 210))
+    for x in range(64, 200, 26):
+        d.ellipse((x, 24, x + 14, 52), outline=(90, 100, 110), width=4)
+    for y in range(104, 220, 24):
+        d.line([(64, y), (192, y)], fill=(170, 190, 210), width=5)
+    return img
+
+
+def paint():
+    img, d = canvas()
+    d.ellipse((20, 44, 236, 220), fill=(246, 226, 186), outline=(190, 160, 110), width=4)
+    d.ellipse((150, 150, 196, 196), fill=(0, 0, 0, 0))
+    for (x, y), col in zip(((62, 92), (104, 68), (152, 76), (186, 112), (66, 144)),
+                           ((232, 40, 40), (250, 200, 0), (40, 170, 70), (30, 110, 220), (150, 60, 200))):
+        d.ellipse((x - 18, y - 18, x + 18, y + 18), fill=col)
+    d.line([(118, 210), (228, 30)], fill=(150, 100, 50), width=14)
+    d.polygon([(104, 236), (112, 200), (130, 208)], fill=(40, 40, 40))
+    return img
+
+
+def vscode():
+    img, d = canvas()
+    d.line([(184, 48), (52, 168)], fill=(0, 96, 160), width=40)
+    d.line([(184, 208), (52, 88)], fill=(0, 122, 204), width=40)
+    d.polygon([(168, 22), (236, 52), (236, 204), (168, 234)], fill=(31, 156, 240))
+    d.polygon([(168, 22), (190, 32), (190, 224), (168, 234)], fill=(0, 122, 204))
+    return img
+
+
+def kakao():
+    img, d = canvas()
+    d.rounded_rectangle((12, 12, 244, 244), 52, fill=(254, 229, 0))
+    d.ellipse((44, 58, 212, 174), fill=(58, 29, 29))
+    d.polygon([(82, 156), (70, 204), (118, 168)], fill=(58, 29, 29))
+    f = ImageFont.truetype(FONT_BOLD, 46)
+    d.text((128, 116), 'TALK', font=f, fill=(254, 229, 0), anchor='mm')
+    return img
+
+
+def terminal():
+    img, d = canvas()
+    d.rounded_rectangle((16, 36, 240, 220), 10, fill=(12, 12, 12), outline=(90, 90, 90), width=4)
+    d.rectangle((18, 38, 238, 66), fill=(60, 60, 60))
+    d.line([(52, 104), (96, 136), (52, 168)], fill=(230, 230, 230), width=14, joint='curve')
+    d.line([(112, 176), (176, 176)], fill=(230, 230, 230), width=14)
+    return img
+
+
 def text_file():
     img, d = canvas()
     d.polygon([(52, 20), (164, 20), (204, 60), (204, 236), (52, 236)], fill=(255, 255, 255), outline=(150, 156, 164))
@@ -83,6 +146,12 @@ ICONS = {
     'folder': folder,
     'this_pc': this_pc,
     'recycle_bin': recycle_bin,
+    'browser': browser,
+    'notepad': notepad,
+    'paint': paint,
+    'vscode': vscode,
+    'kakao': kakao,
+    'terminal': terminal,
     'text_file': text_file,
     'drive': drive,
 }
