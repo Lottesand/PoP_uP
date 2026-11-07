@@ -173,21 +173,58 @@ def windows_logo():
 
 
 ICONS = {
-    'folder': folder,
-    'this_pc': this_pc,
-    'recycle_bin': recycle_bin,
-    'browser': browser,
-    'notepad': notepad,
-    'paint': paint,
-    'vscode': vscode,
-    'kakao': kakao,
-    'terminal': terminal,
-    'usb': usb,
-    'text_file': text_file,
-    'drive': drive,
-    'lock': lock,
-    'windows_logo': windows_logo,
+    'folder': folder, 'this_pc': this_pc, 'recycle_bin': recycle_bin, 'browser': browser,
+    'notepad': notepad, 'paint': paint, 'vscode': vscode, 'kakao': kakao, 'terminal': terminal,
+    'usb': usb, 'text_file': text_file, 'drive': drive, 'lock': lock, 'windows_logo': windows_logo,
 }
+
+
+# ------------------------------------------------------------ 배경화면
+def wallpaper(w=1920, h=1080):
+    # 짙은 남색 바탕 + 원근으로 기울어진 빛나는 창 로고 + 왼쪽으로 퍼지는 빛줄기
+    bg = Image.new('RGB', (w, h))
+    d = ImageDraw.Draw(bg)
+    for y in range(h):
+        k = y / h
+        d.line([(0, y), (w, y)], fill=(int(2 + 6 * k), int(10 + 22 * k), int(36 + 50 * k)))
+
+    glow = Image.radial_gradient('L').resize((w * 2, h * 2)).crop((w * 0.62, h * 0.5, w * 0.62 + w, h * 0.5 + h))
+    glow = Image.eval(glow, lambda v: max(0, 255 - v) * 0.55)
+    bg.paste(Image.new('RGB', (w, h), (20, 110, 230)), (0, 0), glow.convert('L'))
+
+    # 로고 사각형의 네 꼭짓점 (왼쪽은 멀어서 작고, 오른쪽은 가까워서 크다)
+    tl, bl = (1040, 330), (1040, 760)
+    tr, br = (1470, 190), (1470, 890)
+
+    def at(u, v):
+        top = (tl[0] + (tr[0] - tl[0]) * u, tl[1] + (tr[1] - tl[1]) * u)
+        bot = (bl[0] + (br[0] - bl[0]) * u, bl[1] + (br[1] - bl[1]) * u)
+        return (top[0] + (bot[0] - top[0]) * v, top[1] + (bot[1] - top[1]) * v)
+
+    beams = Image.new('L', (w, h))
+    bd = ImageDraw.Draw(beams)
+    bd.polygon([tl, bl, (0, 1080), (0, 0)], fill=70)
+    bd.polygon([at(0, 0.49), at(0, 0.51), (0, 640), (0, 470)], fill=110)
+    bd.polygon([at(0.49, 0), at(0.51, 0), (560, 0), (300, 0)], fill=40)
+    beams = beams.filter(ImageFilter.GaussianBlur(40))
+    bg.paste(Image.new('RGB', (w, h), (60, 150, 255)), (0, 0), beams)
+
+    logo = Image.new('L', (w, h))
+    ld = ImageDraw.Draw(logo)
+    gap = 0.018
+    for u0, u1 in ((0, 0.5 - gap), (0.5 + gap, 1)):
+        for v0, v1 in ((0, 0.5 - gap), (0.5 + gap, 1)):
+            ld.polygon([at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1)], fill=255)
+    halo = logo.filter(ImageFilter.GaussianBlur(28))
+    bg.paste(Image.new('RGB', (w, h), (40, 140, 255)), (0, 0), Image.eval(halo, lambda v: v * 0.8))
+
+    face = Image.new('RGB', (w, h))
+    fd = ImageDraw.Draw(face)
+    for x in range(1000, 1500):
+        k = (x - 1040) / 430
+        fd.line([(x, 0), (x, h)], fill=(int(40 + 80 * k), int(150 + 70 * k), 255))
+    bg.paste(face, (0, 0), logo)
+    return bg
 
 
 def main():
@@ -196,6 +233,7 @@ def main():
         big = make()
         for s in SIZES:
             big.resize((s, s), Image.LANCZOS).save(os.path.join(OUT, 'icons', '%s_%d.png' % (name, s)))
+    wallpaper().save(os.path.join(OUT, 'wallpaper.png'))
     # 확인용 한 장짜리 목록
     sheet = Image.new('RGBA', (len(ICONS) * 60, 60), (240, 240, 240, 255))
     for i, name in enumerate(ICONS):
