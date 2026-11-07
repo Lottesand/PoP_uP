@@ -123,6 +123,17 @@ def terminal():
     return img
 
 
+def usb():
+    img, d = canvas()
+    d.rectangle((100, 18, 156, 70), fill=(200, 204, 210), outline=(120, 124, 130), width=4)
+    d.rectangle((112, 32, 124, 44), fill=(90, 90, 96))
+    d.rectangle((132, 32, 144, 44), fill=(90, 90, 96))
+    d.rounded_rectangle((80, 66, 176, 236), 14, fill=(60, 64, 74))
+    d.rounded_rectangle((92, 78, 164, 224), 10, fill=(84, 90, 104))
+    d.ellipse((120, 196, 136, 212), fill=(80, 220, 120))
+    return img
+
+
 def text_file():
     img, d = canvas()
     d.polygon([(52, 20), (164, 20), (204, 60), (204, 236), (52, 236)], fill=(255, 255, 255), outline=(150, 156, 164))
@@ -142,6 +153,25 @@ def drive():
     return img
 
 
+def lock():
+    img, d = canvas()
+    d.arc((76, 28, 180, 140), 180, 360, fill=(110, 116, 126), width=22)
+    d.line([(87, 84), (87, 120)], fill=(110, 116, 126), width=22)
+    d.line([(169, 84), (169, 120)], fill=(110, 116, 126), width=22)
+    d.rounded_rectangle((52, 112, 204, 236), 16, fill=(240, 180, 40), outline=(190, 130, 20), width=6)
+    d.ellipse((114, 150, 142, 178), fill=(120, 80, 10))
+    d.rectangle((122, 170, 134, 206), fill=(120, 80, 10))
+    return img
+
+
+def windows_logo():
+    img, d = canvas()
+    g = 10
+    for x0, y0 in ((24, 24), (128 + g // 2, 24), (24, 128 + g // 2), (128 + g // 2, 128 + g // 2)):
+        d.rectangle((x0, y0, x0 + 104 - g // 2, y0 + 104 - g // 2), fill=(255, 255, 255))
+    return img
+
+
 ICONS = {
     'folder': folder,
     'this_pc': this_pc,
@@ -152,8 +182,11 @@ ICONS = {
     'vscode': vscode,
     'kakao': kakao,
     'terminal': terminal,
+    'usb': usb,
     'text_file': text_file,
     'drive': drive,
+    'lock': lock,
+    'windows_logo': windows_logo,
 }
 
 
