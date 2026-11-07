@@ -63,3 +63,22 @@ def shadow(l, b, w, h, size=12, alpha=40):
     for i in range(size, 0, -2):
         a = int(alpha * (1 - i / (size + 1)) ** 2)
         fill(l - i, b - i - 2, w + 2 * i, h + 2 * i, (0, 0, 0, a))
+
+
+# ------------------------------------------------------------ 클리핑
+def push_clip(l, b, w, h):
+    if _clips:
+        pl, pb, pw, ph = _clips[-1]
+        nl, nb = max(l, pl), max(b, pb)
+        nr, nt = min(l + w, pl + pw), min(b + h, pb + ph)
+        l, b, w, h = nl, nb, max(0, nr - nl), max(0, nt - nb)
+    _clips.append((l, b, w, h))
+    SDL_RenderSetClipRect(p2.renderer, _sdl_rect(l, b, w, h))
+
+
+def pop_clip():
+    _clips.pop()
+    if _clips:
+        SDL_RenderSetClipRect(p2.renderer, _sdl_rect(*_clips[-1]))
+    else:
+        SDL_RenderSetClipRect(p2.renderer, None)
