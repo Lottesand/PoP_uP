@@ -139,3 +139,45 @@ def text(s, x, cy, size=12, color=config.TEXT, font=config.FONT, align='left'):
 def symbol(code, x, cy, size=10, color=config.TEXT, align='center'):
     # Segoe MDL2 Assets 기호 (예: '\uE8BB' 닫기)
     return text(code, x, cy, size, color, config.FONT_SYMBOL, align)
+
+
+def wrap(s, max_w, size=12, font=config.FONT, max_lines=2):
+    # 단어 단위로 줄바꿈하고, 한 단어가 너무 길면 글자 단위로 자른다
+    lines, cur = [], ''
+    for word in s.split(' '):
+        trial = word if not cur else cur + ' ' + word
+        if text_width(trial, size, font) <= max_w:
+            cur = trial
+            continue
+        if cur:
+            lines.append(cur)
+        cur = ''
+        for ch in word:
+            if text_width(cur + ch, size, font) > max_w and cur:
+                lines.append(cur)
+                cur = ''
+            cur += ch
+    if cur:
+        lines.append(cur)
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+        lines[-1] = lines[-1][:-1] + '…'
+    return lines
+
+
+# ------------------------------------------------------------ 이미지
+def image(name):
+    img = _images.get(name)
+    if img is None:
+        img = load_image(os.path.join(config.ASSETS, name))
+        _images[name] = img
+    return img
+
+
+def icon(name, size, l, b, alpha=None):
+    img = image('icons/%s_%d.png' % (name, size))
+    if alpha is not None:
+        img.opacify(alpha)
+    img.draw_to_origin(int(l), int(b), size, size)
+    if alpha is not None:
+        img.opacify(1)
