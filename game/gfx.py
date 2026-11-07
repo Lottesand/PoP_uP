@@ -82,3 +82,60 @@ def pop_clip():
         SDL_RenderSetClipRect(p2.renderer, _sdl_rect(*_clips[-1]))
     else:
         SDL_RenderSetClipRect(p2.renderer, None)
+
+
+# ------------------------------------------------------------ 글자
+def _font(path, size):
+    key = (path, size)
+    if key not in _fonts:
+        f = TTF_OpenFont(path.encode('utf-8'), size)
+        if not f:
+            raise IOError('cannot load font ' + path)
+        _fonts[key] = f
+    return _fonts[key]
+
+
+def text_image(s, size=12, color=config.TEXT, font=config.FONT):
+    # Font.draw는 부를 때마다 텍스처를 만들어서 느리다. 같은 글자는 한 번만 만든다.
+    key = (s, size, color[:3], font)
+    img = _texts.get(key)
+    if img is None:
+        if len(_texts) > 3000:
+            _texts.clear()
+        surface = TTF_RenderUTF8_Blended(_font(font, size), s.encode('utf-8'), SDL_Color(*color[:3]))
+        if not surface:
+            return None
+        texture = SDL_CreateTextureFromSurface(p2.renderer, surface)
+        SDL_FreeSurface(surface)
+        img = Image(texture)
+        _texts[key] = img
+    return img
+
+
+def text_width(s, size=12, font=config.FONT):
+    img = text_image(s, size, config.TEXT, font) if s else None
+    return img.w if img else 0
+
+
+def text(s, x, cy, size=12, color=config.TEXT, font=config.FONT, align='left'):
+    """cy를 세로 가운데로 글자를 그린다. 그린 폭을 돌려준다."""
+    if not s:
+        return 0
+    img = text_image(s, size, color, font)
+    if img is None:
+        return 0
+    if align == 'center':
+        x -= img.w / 2
+    elif align == 'right':
+        x -= img.w
+    if len(color) > 3:
+        img.opacify(color[3] / 255)
+    img.draw_to_origin(int(x), int(cy - img.h / 2))
+    if len(color) > 3:
+        img.opacify(1)
+    return img.w
+
+
+def symbol(code, x, cy, size=10, color=config.TEXT, align='center'):
+    # Segoe MDL2 Assets 기호 (예: '\uE8BB' 닫기)
+    return text(code, x, cy, size, color, config.FONT_SYMBOL, align)
