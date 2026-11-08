@@ -193,6 +193,49 @@ DINO = [
 ]
 
 
+def draw_dino(l, b, px, color=(83, 83, 83)):
+    rows = len(DINO)
+    for r, row in enumerate(DINO):
+        for c, ch in enumerate(row):
+            if ch == '#':
+                gfx.fill(l + c * px, b + (rows - 1 - r) * px, px, px, color)
+
+
+class Browser(App):
+    key, title, icon = 'browser', '새 탭 - Chrome', 'browser'
+    size = (1000, 640)
+
+    def draw(self, l, b, w, h, active):
+        top = b + h
+        gfx.fill(l, b, w, h, WHITE)
+        # 탭 줄
+        gfx.fill(l, top - 34, w, 34, (222, 225, 230) if active else (232, 234, 237))
+        gfx.fill(l + 8, top - 34, 230, 28, WHITE)
+        gfx.icon('browser', 16, l + 20, top - 28)
+        gfx.text('인터넷 연결 없음', l + 44, top - 20, 12)
+        gfx.symbol('\uE711', l + 222, top - 20, 8, (90, 90, 90))
+        gfx.symbol('\uE710', l + 256, top - 20, 10, (90, 90, 90))
+        # 도구 모음 · 주소창
+        y = top - 34 - 38
+        for i, g in enumerate((G_BACK, G_FWD, G_REFRESH)):
+            gfx.symbol(g, l + 22 + i * 34, y + 19, 12, (160, 160, 160) if i < 2 else (90, 90, 90))
+        gfx.fill(l + 118, y + 5, w - 170, 28, (241, 243, 244))
+        gfx.symbol('\uE946', l + 136, y + 19, 12, (90, 90, 90))
+        gfx.text('chrome://network-error', l + 156, y + 19, 14, (60, 60, 60))
+        gfx.symbol('\uE712', l + w - 26, y + 19, 12, (90, 90, 90))
+        gfx.line(l, y, l + w, y, (218, 220, 224))
+        # 오류 페이지
+        cx = l + max(60, (w - 600) // 2)
+        cy = y - 90
+        draw_dino(cx, cy - 72, 4)
+        gfx.text('인터넷에 연결되어 있지 않음', cx, cy - 110, 24, (32, 33, 36))
+        gfx.text('다음 방법을 시도해 보세요.', cx, cy - 150, 14, (95, 99, 104))
+        for i, tip in enumerate(('네트워크 케이블, 모뎀, 라우터 확인', 'Wi-Fi에 다시 연결')):
+            gfx.fill(cx + 22, cy - 178 - i * 24, 4, 4, (95, 99, 104))
+            gfx.text(tip, cx + 34, cy - 176 - i * 24, 14, (95, 99, 104))
+        gfx.text('ERR_INTERNET_DISCONNECTED', cx, cy - 240, 12, (117, 117, 117))
+
+
 # ==================================================================== Visual Studio Code
 CODE = [
     [('def ', (86, 156, 214)), ('escape', (220, 220, 170)), ('(pointer):', (212, 212, 212))],
