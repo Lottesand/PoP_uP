@@ -196,9 +196,83 @@ class WindowManager:
     def visible(self):
         return [w for w in self.windows if w.state != 'min']
 
+    # ---------------------------------------------------------------- 마우스
+    def hit(self, mx, my):
+        for win in reversed(self.visible()):
+            part = win.hit(mx, my)
+            if part:
+                return win, part
+        return None, None
+
+    def cursor_for(self, mx, my):
+        if self.drag and self.drag[0] == 'resize':
+            return _EDGE_CURSOR[self.drag[2]]
+        win, part = self.hit(mx, my)
+        if part and part[0] == 'resize':
+            return _EDGE_CURSOR[part[1]]
+        return 'arrow'
+
+    def mouse_move(self, mx, my):
+        if self.drag:
+            kind, win, extra, (sx, sy), start = self.drag
+            dx, dy = mx - sx, my - sy
+            if kind == 'move':
+                if win.state == 'max':
+                    if abs(dx) + abs(dy) < 4:
+                        return
+                    win.restore_for_drag(mx, my)
+                    self.drag = ('move', win, None, (mx, my), (win.x, win.y, win.w, win.h))
+                    return
+                win.x, win.y = start[0] + dx, start[1] + dy
+                win.clamp()
+            else:
+                win.resize(extra, start, dx, dy)
+            return
+        win, part = self.hit(mx, my)
+        self.hover = (win, part[0]) if part and part[0] in ('min', 'max', 'close') else None
+
+    def mouse_down(self, mx, my, now):
+        win, part = self.hit(mx, my)
+        if not win:
+            return False
+        self.focus(win)
+        kind, edge = part
+        start = (win.x, win.y, win.w, win.h)
+        if kind == 'resize':
+            self.drag = ('resize', win, edge, (mx, my), start)
+        elif kind in ('min', 'max', 'close'):
+            self.pressed = (win, kind)
+        elif kind == 'title':
+            last_win, last_t = self.last_title_click
+            if last_win is win and now - last_t < DOUBLE_CLICK:
+                win.toggle_max()
+                self.last_title_click = (None, -1.0)
+                return True
+            self.last_title_click = (win, now)
+            self.drag = ('move', win, None, (mx, my), start)
+        return True
+
+    def mouse_up(self, mx, my):
+        self.drag = None
+        if self.pressed:
+            win, name = self.pressed
+            self.pressed = None
+            part = win.hit(mx, my)
+            if part and part[0] == name:
+                if name == 'close':
+                    self.close(win)
+                elif name == 'max':
+                    win.toggle_max()
+                else:
+                    self.minimize(win)
+
     # ---------------------------------------------------------------- 그리기
     def draw(self):
         for win in self.visible():
             hover = self.hover[1] if self.hover and self.hover[0] is win else None
             pressed = self.pressed[1] if self.pressed and self.pressed[0] is win else None
             win.draw(win is self.active, hover, pressed)
+
+
+_EDGE_CURSOR = {'l': 'we', 'r': 'we', 't': 'ns', 'b': 'ns',
+                'tl': 'nwse', 'br': 'nwse', 'tr': 'nesw', 'bl': 'nesw'}
