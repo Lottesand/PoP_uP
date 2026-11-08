@@ -141,6 +141,35 @@ class ThisPC(Explorer):
         return top - 24
 
 
+# ==================================================================== 메모장
+class Notepad(App):
+    size = (640, 460)
+
+    def __init__(self, key, filename, lines):
+        self.key, self.title, self.icon = key, filename + ' - Windows 메모장', 'notepad'
+        self.lines = lines
+
+    def draw(self, l, b, w, h, active):
+        top = b + h
+        gfx.fill(l, b, w, h, WHITE)
+        x = l + 8
+        for m in ('파일(F)', '편집(E)', '서식(O)', '보기(V)', '도움말(H)'):
+            x += gfx.text(m, x, top - 10, 12) + 14
+        gfx.line(l, top - 20, l + w, top - 20, (240, 240, 240))
+        for i, ln in enumerate(self.lines):
+            gfx.text(ln, l + 6, top - 34 - i * 20, 14)
+        if active and int(time.time() * 2) % 2 == 0:
+            gfx.fill(l + 6, top - 44, 1, 18, TEXT)
+        # 상태 표시줄 · 스크롤바
+        gfx.fill(l, b, w, 22, (240, 240, 240))
+        gfx.line(l, b + 22, l + w, b + 22, (220, 220, 220))
+        x = l + w - 30
+        for part in ('UTF-8', 'Windows (CRLF)', '100%', 'Ln 1, Col 1'):
+            x -= gfx.text(part, x, b + 11, 12, align='right') + 34
+            gfx.line(x + 18, b + 2, x + 18, b + 20, (210, 210, 210))
+        gfx.fill(l + w - 17, b + 22, 17, h - 42, (240, 240, 240))
+
+
 # ==================================================================== 웹 브라우저 (인터넷 끊김)
 DINO = [
     '..........######..',
@@ -189,3 +218,10 @@ def recycle_bin():
     return Explorer('recycle_bin', '휴지통', 'recycle_bin', ['휴지통'],
                     [('text_file', '비밀번호 힌트.txt'), ('folder', '옛날 드라이버'), ('text_file', 'key_part_2.txt')],
                     ribbon=('파일', '홈', '공유', '보기', '관리'))
+
+
+def escape_note():
+    return Notepad('notepad', '탈출 계획.txt',
+                   ['1. 바탕화면에서 나가는 길 찾기', '2. 인터넷 차단기 끄기',
+                    '3. %appdata% 권한 얻기', '4. 휴지통 열기', '5. 나를 압축해서 USB로 내보내기', '',
+                    '- 포인터'])
