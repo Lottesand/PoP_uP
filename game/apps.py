@@ -236,6 +236,46 @@ class Browser(App):
         gfx.text('ERR_INTERNET_DISCONNECTED', cx, cy - 240, 12, (117, 117, 117))
 
 
+# ==================================================================== 그림판
+class Paint(App):
+    key, title, icon = 'paint', '제목 없음 - 그림판', 'paint'
+    size = (860, 600)
+
+    def draw(self, l, b, w, h, active):
+        top = b + h
+        gfx.fill(l, b, w, h, (201, 211, 226))
+        gfx.fill(l, top - 24, w, 24, WHITE)
+        gfx.fill(l, top - 24, 50, 24, (25, 121, 202))
+        gfx.text('파일', l + 25, top - 12, 12, WHITE, align='center')
+        gfx.text('홈', l + 70, top - 12, 12)
+        gfx.text('보기', l + 104, top - 12, 12)
+        ry = top - 24 - 92
+        gfx.fill(l, ry, w, 92, (245, 246, 247))
+        gfx.line(l, ry, l + w, ry, (218, 219, 220))
+        groups = (('클립보드', 70), ('이미지', 110), ('도구', 120), ('브러시', 60), ('도형', 170), ('크기', 50), ('색', 240))
+        x = l + 6
+        for name, gw in groups:
+            gfx.text(name, x + gw / 2, ry + 10, 12, (90, 90, 90), align='center')
+            gfx.line(x + gw + 3, ry + 6, x + gw + 3, ry + 86, (226, 227, 228))
+            if name == '도구':
+                for i in range(6):
+                    tx, ty = x + 12 + (i % 3) * 32, ry + 66 - (i // 3) * 28
+                    gfx.frame(tx, ty - 10, 24, 22, (200, 200, 200))
+                    if i == 1:
+                        gfx.fill(tx + 4, ty - 6, 16, 14, (60, 120, 200))     # 페인트통
+            if name == '색':
+                cols = [(0, 0, 0), (127, 127, 127), (136, 0, 21), (237, 28, 36), (255, 127, 39), (255, 242, 0),
+                        (34, 177, 76), (0, 162, 232), (63, 72, 204), (163, 73, 164)]
+                for i, c in enumerate(cols):
+                    gfx.fill(x + 10 + i * 22, ry + 56, 18, 18, c)
+                    gfx.frame(x + 10 + i * 22, ry + 56, 18, 18, (160, 160, 160))
+            x += gw + 8
+        cw, chh = min(w - 20, 640), min(ry - b - 40, 400)
+        gfx.fill(l + 6, ry - 6 - chh, cw, chh, WHITE)
+        gfx.fill(l, b, w, 24, (240, 240, 240))
+        gfx.text('%d × %d픽셀' % (cw, chh), l + 200, b + 12, 12)
+
+
 # ==================================================================== Visual Studio Code
 CODE = [
     [('def ', (86, 156, 214)), ('escape', (220, 220, 170)), ('(pointer):', (212, 212, 212))],
@@ -248,6 +288,38 @@ CODE = [
     [('    ', None), ('usb.', (156, 220, 254)), ('copy', (220, 220, 170)), ('(zip_file)', (212, 212, 212))],
     [('    ', None), ('usb.', (156, 220, 254)), ('safely_remove', (220, 220, 170)), ('()', (212, 212, 212))],
 ]
+
+
+class VSCode(App):
+    key, title, icon = 'vscode', 'escape.py - Visual Studio Code', 'vscode'
+    size = (960, 600)
+
+    def draw(self, l, b, w, h, active):
+        top = b + h
+        gfx.fill(l, b, w, h, (30, 30, 30))
+        gfx.fill(l, b + 22, 48, h - 22, (51, 51, 51))
+        for i, g in enumerate(('\uE8A5', G_SEARCH, '\uE8CB', '\uEBE8')):
+            gfx.symbol(g, l + 24, top - 28 - i * 48, 18, (200, 200, 200) if i == 0 else (130, 130, 130))
+        gfx.fill(l + 48, b + 22, 200, h - 22, (37, 37, 38))
+        gfx.text('탐색기', l + 64, top - 18, 11, (187, 187, 187))
+        for i, name in enumerate(('escape.py', 'pointer.py', 'usb_key.txt')):
+            if i == 0:
+                gfx.fill(l + 48, top - 54 - i * 22, 200, 22, (55, 55, 61))
+            gfx.text(name, l + 76, top - 43 - i * 22, 13, (204, 204, 204))
+        gfx.fill(l + 248, top - 35, 140, 35, (30, 30, 30))
+        gfx.fill(l + 388, top - 35, w - 388, 35, (37, 37, 38))
+        gfx.text('escape.py', l + 268, top - 17, 13, WHITE)
+        for i, row in enumerate(CODE):
+            y = top - 60 - i * 20
+            gfx.text(str(i + 1), l + 290, y, 13, (133, 133, 133), align='right')
+            if i == 1:
+                gfx.fill(l + 258, y - 6, 12, 12, (229, 20, 0))     # 중단점
+            x = l + 310
+            for s, c in row:
+                x += gfx.text(s, x, y, 13, c) if c else gfx.text_width(s, 13)
+        gfx.fill(l, b, w, 22, (0, 122, 204))
+        gfx.text('Python 3.15', l + w - 20, b + 11, 12, WHITE, align='right')
+        gfx.text('main', l + 30, b + 11, 12, WHITE)
 
 
 # ==================================================================== 프로그램 목록
