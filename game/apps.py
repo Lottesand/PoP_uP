@@ -99,6 +99,48 @@ class Explorer(App):
                 gfx.text(ln, cx + cell_w / 2, ct - 66 - j * 16, 12, align='center')
 
 
+class ThisPC(Explorer):
+    def __init__(self):
+        super().__init__('this_pc', '내 PC', 'this_pc', ['내 PC'], [])
+        self.ribbon = ('파일', '컴퓨터', '보기')
+
+    FOLDERS = ['3D 개체', '다운로드', '동영상', '문서', '바탕 화면', '사진', '음악']
+
+    def count(self):
+        return len(self.FOLDERS) + 2
+
+    def draw_items(self, l, b, w, h):
+        top = b + h - 8
+        folders = self.FOLDERS
+        y = self.group('폴더 (%d)' % len(folders), l, top, w)
+        cols = max(1, (w - 20) // 220)
+        for i, name in enumerate(folders):
+            x = l + 20 + (i % cols) * 220
+            yy = y - 30 - (i // cols) * 62
+            gfx.icon('folder', 48, x, yy - 24)
+            gfx.text(name, x + 58, yy, 12)
+        y -= 30 + ((len(folders) - 1) // cols + 1) * 62
+        y = self.group('장치 및 드라이브 (2)', l, y, w)
+        for i, (icon, name, used, info, locked) in enumerate((
+                ('drive', '로컬 디스크 (C:)', 0.62, '476GB 중 181GB 사용 가능', False),
+                ('usb', 'USB 드라이브 (E:)', 0.0, '접근 거부됨', True))):
+            x = l + 20 + i * 300
+            gfx.icon(icon, 48, x, y - 64)
+            if locked:
+                gfx.icon('lock', 24, x + 28, y - 64)
+            gfx.text(name, x + 58, y - 22, 12)
+            gfx.fill(x + 58, y - 44, 196, 14, (230, 230, 230))
+            gfx.frame(x + 58, y - 44, 196, 14, (188, 188, 188))
+            gfx.fill(x + 59, y - 43, int(194 * used), 12, (38, 160, 218))
+            gfx.text(info, x + 58, y - 58, 12, CLOSE_RED if locked else TEXT_GRAY)
+
+    def group(self, name, l, top, w):
+        gfx.symbol(G_CHEVRON_D, l + 14, top - 12, 8, (90, 90, 90))
+        tw = gfx.text(name, l + 26, top - 12, 12, (30, 57, 145))
+        gfx.line(l + 34 + tw, top - 12, l + w - 16, top - 12, LINE)
+        return top - 24
+
+
 # ==================================================================== 웹 브라우저 (인터넷 끊김)
 DINO = [
     '..........######..',
