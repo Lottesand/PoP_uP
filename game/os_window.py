@@ -131,3 +131,74 @@ class OSWindow:
 
         if self.state == 'normal':
             gfx.frame(l, b, w, h, BORDER_ACTIVE if active else BORDER_INACTIVE)
+
+
+class WindowManager:
+    def __init__(self):
+        self.windows = []              # 뒤 → 앞 순서
+        self.active = None
+        self.hover = None              # (창, 버튼 이름)
+        self.pressed = None            # (창, 버튼 이름)
+        self.drag = None               # ('move', 창, 시작 마우스, 시작 사각형) / ('resize', 창, 가장자리, ...)
+        self.last_title_click = (None, -1.0)
+        self.cascade = 0
+
+    # ---------------------------------------------------------------- 열기 · 닫기 · 순서
+    def find(self, key):
+        for win in self.windows:
+            if win.app.key == key:
+                return win
+        return None
+
+    def open(self, app):
+        win = self.find(app.key)
+        if win:
+            self.focus(win)
+            return win
+        w, h = app.size
+        x = 140 + 32 * (self.cascade % 8)
+        y = H - 90 - 32 * (self.cascade % 8) - h
+        self.cascade += 1
+        win = OSWindow(app, x, max(TASKBAR_H + 10, y), w, h)
+        self.windows.append(win)
+        self.focus(win)
+        return win
+
+    def close(self, win):
+        self.windows.remove(win)
+        if self.active is win:
+            self.active = None
+            self._activate_top()
+
+    def minimize(self, win):
+        win.saved_state = win.state
+        win.state = 'min'
+        if self.active is win:
+            self.active = None
+            self._activate_top()
+
+    def focus(self, win):
+        if win.state == 'min':
+            win.state = win.saved_state
+        self.windows.remove(win)
+        self.windows.append(win)
+        self.active = win
+
+    def _activate_top(self):
+        for win in reversed(self.windows):
+            if win.state != 'min':
+                self.active = win
+                return
+
+    def deactivate(self):
+        self.active = None
+
+    def visible(self):
+        return [w for w in self.windows if w.state != 'min']
+
+    # ---------------------------------------------------------------- 그리기
+    def draw(self):
+        for win in self.visible():
+            hover = self.hover[1] if self.hover and self.hover[0] is win else None
+            pressed = self.pressed[1] if self.pressed and self.pressed[0] is win else None
+            win.draw(win is self.active, hover, pressed)
