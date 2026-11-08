@@ -322,6 +322,39 @@ class VSCode(App):
         gfx.text('main', l + 30, b + 11, 12, WHITE)
 
 
+# ==================================================================== 카카오톡
+class Kakao(App):
+    key, title, icon = 'kakao', '카카오톡', 'kakao'
+    size = (380, 600)
+
+    def draw(self, l, b, w, h, active):
+        gfx.fill(l, b, w, h, (254, 229, 0))
+        cx, cy = l + w / 2, b + h * 0.62
+        gfx.icon('kakao', 48, cx - 24, cy - 24)
+        gfx.fill(cx - 120, cy - 110, 240, 40, WHITE)
+        gfx.text('카카오계정 (이메일 또는 전화번호)', cx - 110, cy - 90, 12, (170, 170, 170))
+        gfx.fill(cx - 120, cy - 151, 240, 40, WHITE)
+        gfx.text('비밀번호', cx - 110, cy - 131, 12, (170, 170, 170))
+        gfx.fill(cx - 120, cy - 200, 240, 40, (246, 246, 246))
+        gfx.text('로그인', cx, cy - 180, 13, (180, 180, 180), align='center')
+
+
+# ==================================================================== 명령 프롬프트
+class Terminal(App):
+    key, title, icon = 'terminal', '명령 프롬프트', 'terminal'
+    size = (720, 420)
+
+    def draw(self, l, b, w, h, active):
+        top = b + h
+        gfx.fill(l, b, w, h, (12, 12, 12))
+        lines = ['Microsoft Windows [Version 10.0.19045.5247]', '(c) Microsoft Corporation. All rights reserved.', '',
+                 'C:\\Users\\Pointer>']
+        for i, ln in enumerate(lines):
+            gfx.text(ln, l + 6, top - 14 - i * 18, 14, (204, 204, 204))
+        if active and int(time.time() * 2) % 2 == 0:
+            gfx.fill(l + 8 + gfx.text_width(lines[-1], 14), top - 14 - 3 * 18 - 8, 9, 3, (204, 204, 204))
+
+
 # ==================================================================== 프로그램 목록
 def documents():
     return Explorer('documents', '문서', 'folder', ['내 PC', '문서'],
@@ -340,3 +373,9 @@ def escape_note():
                    ['1. 바탕화면에서 나가는 길 찾기', '2. 인터넷 차단기 끄기',
                     '3. %appdata% 권한 얻기', '4. 휴지통 열기', '5. 나를 압축해서 USB로 내보내기', '',
                     '- 포인터'])
+
+
+APPS = {
+    'this_pc': ThisPC, 'recycle_bin': recycle_bin, 'documents': documents, 'notepad': escape_note,
+    'browser': Browser, 'paint': Paint, 'vscode': VSCode, 'kakao': Kakao, 'terminal': Terminal,
+}
