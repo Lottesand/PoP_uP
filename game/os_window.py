@@ -34,6 +34,68 @@ class OSWindow:
         return [(name, r - CAPTION_BTN_W * (i + 1), top - TITLE_H + e, CAPTION_BTN_W, TITLE_H - e)
                 for i, name in enumerate(('close', 'max', 'min'))]
 
+    # ---------------------------------------------------------------- 마우스 판정
+    def hit(self, mx, my):
+        """('resize', 가장자리 문자열) / ('close'|'max'|'min'|'title'|'client', None) / None"""
+        l, b, w, h = self.rect()
+        r, t = l + w, b + h
+        if self.state == 'normal':
+            g = RESIZE_GRIP
+            if l - g <= mx < r + g and b - g <= my < t + g:
+                edge = ''
+                if my >= t - 2:
+                    edge += 't'
+                elif my < b + 2:
+                    edge += 'b'
+                if mx < l + 2:
+                    edge += 'l'
+                elif mx >= r - 2:
+                    edge += 'r'
+                if edge and not (edge == 't' and my < t):
+                    return 'resize', edge
+        if not (l <= mx < r and b <= my < t):
+            return None
+        if my >= t - TITLE_H:
+            for name, bl, bb, bw, bh in self.caption_buttons():
+                if bl <= mx < bl + bw:
+                    return name, None
+            return 'title', None
+        return 'client', None
+
+    # ---------------------------------------------------------------- 상태 바꾸기
+    def toggle_max(self):
+        if self.state == 'max':
+            self.state = 'normal'
+        else:
+            self.state = 'max'
+
+    def restore_for_drag(self, mx, my):
+        # 최대화된 창을 끌면 원래 크기로 돌아가면서 마우스가 제목 표시줄의 같은 비율 위치에 오게 한다
+        k = mx / W
+        self.state = 'normal'
+        self.x = int(mx - self.w * k)
+        self.y = int(my + TITLE_H / 2 - self.h)
+
+    def clamp(self):
+        self.x = max(80 - self.w, min(W - 80, self.x))
+        top = self.y + self.h
+        top = max(TASKBAR_H + TITLE_H, min(H, top))
+        self.y = top - self.h
+
+    def resize(self, edge, start, dx, dy):
+        x, y, w, h = start
+        if 'l' in edge:
+            nw = max(WIN_MIN_W, w - dx)
+            x, w = x + w - nw, nw
+        if 'r' in edge:
+            w = max(WIN_MIN_W, w + dx)
+        if 'b' in edge:
+            nh = max(WIN_MIN_H, h - dy)
+            y, h = y + h - nh, nh
+        if 't' in edge:
+            h = max(WIN_MIN_H, min(H - y, h + dy))
+        self.x, self.y, self.w, self.h = x, y, w, h
+
     # ---------------------------------------------------------------- 그리기
     def draw(self, active, hover=None, pressed=None):
         l, b, w, h = self.rect()
