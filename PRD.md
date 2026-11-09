@@ -241,7 +241,18 @@
 
 ---
 
-## 11. 프로토타입 (`prototype/`)
+## 11. 실행 방법
+
+```bash
+cd game
+python main.py                       # 게임 실행 (ESC 종료)
+python ../tools/make_assets.py       # 아이콘 · 배경화면 다시 만들기 (game/assets)
+python ../tools/screenshot.py out    # 정해진 장면을 PNG로 저장
+```
+
+현재 구현: 윈도우 10 데스크톱 (배경화면, 바탕화면 아이콘, 작업 표시줄, 시작 메뉴, 창 끌기 · 크기 조절 · 최소화 · 최대화 · 닫기, 프로그램 9종 화면).
+
+## 12. 프로토타입 (`prototype/`)
 
 이전 기획(스틱맨) 단계에서 pico2d로 만든 **창 시스템 검증용 프로토타입**. 기본 도형만 사용.
 
