@@ -217,49 +217,86 @@ ICONS = {
 
 
 # ------------------------------------------------------------ 배경화면
+def _hull(points):
+    pts = sorted(set(points))
+
+    def cross(o, a, b):
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+
+    lower, upper = [], []
+    for p in pts:
+        while len(lower) >= 2 and cross(lower[-2], lower[-1], p) <= 0:
+            lower.pop()
+        lower.append(p)
+    for p in reversed(pts):
+        while len(upper) >= 2 and cross(upper[-2], upper[-1], p) <= 0:
+            upper.pop()
+        upper.append(p)
+    return lower[:-1] + upper[:-1]
+
+
+def _light(bg, mask, color):
+    # mask 모양으로 color 빛을 더한다 (screen 합성)
+    from PIL import ImageChops
+    layer = Image.composite(Image.new('RGB', bg.size, color), Image.new('RGB', bg.size), mask)
+    return ImageChops.screen(bg, layer)
+
+
 def wallpaper(w=1920, h=1080):
-    # 짙은 남색 바탕 + 원근으로 기울어진 빛나는 창 로고 + 왼쪽으로 퍼지는 빛줄기
+    # 윈도우 10 기본 배경: 어두운 남색 공간, 원근으로 놓인 창 로고, 로고 네 칸을 지나 왼쪽 앞으로 쏟아지는 빛기둥
     bg = Image.new('RGB', (w, h))
     d = ImageDraw.Draw(bg)
     for y in range(h):
         k = y / h
-        d.line([(0, y), (w, y)], fill=(int(2 + 6 * k), int(10 + 22 * k), int(36 + 50 * k)))
+        d.line([(0, y), (w, y)], fill=(int(1 + 3 * k), int(6 + 14 * k), int(22 + 30 * k)))
 
-    glow = Image.radial_gradient('L').resize((w * 2, h * 2)).crop((w * 0.62, h * 0.5, w * 0.62 + w, h * 0.5 + h))
-    glow = Image.eval(glow, lambda v: max(0, 255 - v) * 0.55)
-    bg.paste(Image.new('RGB', (w, h), (20, 110, 230)), (0, 0), glow.convert('L'))
-
-    # 로고 사각형의 네 꼭짓점 (왼쪽은 멀어서 작고, 오른쪽은 가까워서 크다)
-    tl, bl = (1040, 330), (1040, 760)
-    tr, br = (1470, 190), (1470, 890)
+    tl, bl = (1050, 300), (1050, 790)        # 로고 왼쪽 (멀리)
+    tr, br = (1480, 160), (1480, 930)        # 로고 오른쪽 (가까이)
 
     def at(u, v):
         top = (tl[0] + (tr[0] - tl[0]) * u, tl[1] + (tr[1] - tl[1]) * u)
         bot = (bl[0] + (br[0] - bl[0]) * u, bl[1] + (br[1] - bl[1]) * u)
         return (top[0] + (bot[0] - top[0]) * v, top[1] + (bot[1] - top[1]) * v)
 
+    gap = 0.02
+    panes = [((u0, u1), (v0, v1)) for u0, u1 in ((0, 0.5 - gap), (0.5 + gap, 1))
+             for v0, v1 in ((0, 0.5 - gap), (0.5 + gap, 1))]
+
+    # 로고 뒤 오른쪽의 광원에서 각 칸을 지나 왼쪽으로 뻗는 빛기둥. 칸 사이 틈은 어두운 십자 그림자로 남는다.
+    src, far_x = (2500, 545), -500
     beams = Image.new('L', (w, h))
     bd = ImageDraw.Draw(beams)
-    bd.polygon([tl, bl, (0, 1080), (0, 0)], fill=70)
-    bd.polygon([at(0, 0.49), at(0, 0.51), (0, 640), (0, 470)], fill=110)
-    bd.polygon([at(0.49, 0), at(0.51, 0), (560, 0), (300, 0)], fill=40)
-    beams = beams.filter(ImageFilter.GaussianBlur(40))
-    bg.paste(Image.new('RGB', (w, h), (60, 150, 255)), (0, 0), beams)
+    for (u0, u1), (v0, v1) in panes:
+        corners = [at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1)]
+        far = []
+        for x, y in corners:
+            t = (far_x - src[0]) / (x - src[0])
+            far.append((src[0] + (x - src[0]) * t, src[1] + (y - src[1]) * t))
+        bd.polygon(_hull(corners + far), fill=255)
+    fade = Image.linear_gradient('L').rotate(90, expand=True).resize((w, h))   # 왼쪽 0 → 오른쪽 255
+    fade = Image.eval(fade, lambda v: int(255 * (v / 255) ** 1.6))
+    from PIL import ImageChops
+    beams = ImageChops.multiply(beams, fade).filter(ImageFilter.GaussianBlur(10))
+    bg = _light(bg, Image.eval(beams, lambda v: int(v * 0.62)), (40, 125, 230))
+    bg = _light(bg, Image.eval(beams.filter(ImageFilter.GaussianBlur(60)), lambda v: int(v * 0.5)), (30, 90, 200))
+
+    # 바닥에 번진 빛
+    floor = Image.new('L', (w, h))
+    ImageDraw.Draw(floor).ellipse((300, 820, 1600, 1250), fill=90)
+    bg = _light(bg, floor.filter(ImageFilter.GaussianBlur(120)), (30, 90, 190))
 
     logo = Image.new('L', (w, h))
     ld = ImageDraw.Draw(logo)
-    gap = 0.018
-    for u0, u1 in ((0, 0.5 - gap), (0.5 + gap, 1)):
-        for v0, v1 in ((0, 0.5 - gap), (0.5 + gap, 1)):
-            ld.polygon([at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1)], fill=255)
-    halo = logo.filter(ImageFilter.GaussianBlur(28))
-    bg.paste(Image.new('RGB', (w, h), (40, 140, 255)), (0, 0), Image.eval(halo, lambda v: v * 0.8))
+    for (u0, u1), (v0, v1) in panes:
+        ld.polygon([at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1)], fill=255)
+    bg = _light(bg, logo.filter(ImageFilter.GaussianBlur(40)), (30, 120, 255))
+    bg = _light(bg, logo.filter(ImageFilter.GaussianBlur(8)), (70, 170, 255))
 
     face = Image.new('RGB', (w, h))
     fd = ImageDraw.Draw(face)
-    for x in range(1000, 1500):
-        k = (x - 1040) / 430
-        fd.line([(x, 0), (x, h)], fill=(int(40 + 80 * k), int(150 + 70 * k), 255))
+    for x in range(1040, 1490):
+        k = (x - 1050) / 430
+        fd.line([(x, 0), (x, h)], fill=(int(60 + 110 * k), int(170 + 70 * k), 255))
     bg.paste(face, (0, 0), logo)
     return bg
 
