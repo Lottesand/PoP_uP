@@ -4,7 +4,7 @@ import os
 import pico2d.pico2d as p2
 from pico2d import load_image, Image
 from sdl2 import *
-from sdl2.sdlttf import TTF_OpenFont, TTF_RenderUTF8_Blended
+from sdl2.sdlttf import TTF_OpenFont, TTF_RenderUTF8_Blended, TTF_FontAscent, TTF_FontDescent
 
 import config
 
@@ -58,6 +58,14 @@ def line(x1, y1, x2, y2, c):
     SDL_RenderDrawLine(p2.renderer, int(x1), int(config.H - 1 - y1), int(x2), int(config.H - 1 - y2))
 
 
+def circle(x, y, r, c):
+    _color(c)
+    for dy in range(-r, r + 1):
+        dx = int((r * r - dy * dy) ** 0.5)
+        sy = int(config.H - 1 - (y + dy))
+        SDL_RenderDrawLine(p2.renderer, int(x - dx), sy, int(x + dx), sy)
+
+
 def shadow(l, b, w, h, size=12, alpha=40):
     # 창 바깥으로 점점 옅어지는 그림자
     for i in range(size, 0, -2):
@@ -95,14 +103,39 @@ def _font(path, size):
     return _fonts[key]
 
 
-def text_image(s, size=12, color=config.TEXT, font=config.FONT):
+def _is_korean(ch):
+    o = ord(ch)
+    return 0x1100 <= o <= 0x11FF or 0x3000 <= o <= 0x9FFF or 0xAC00 <= o <= 0xD7AF or 0xFF00 <= o <= 0xFFEF
+
+
+def _runs(s, font):
+    """글자를 (조각, 폰트 파일) 묶음으로 나눈다. 공백·기호는 앞 조각에 붙인다."""
+    if font not in config.UI_FONTS:
+        return [(s, font)]
+    latin, korean = config.UI_FONTS[font]
+    runs = []
+    for ch in s:
+        if _is_korean(ch):
+            f = korean
+        elif ch.isalnum():
+            f = latin
+        else:
+            f = runs[-1][1] if runs else latin
+        if runs and runs[-1][1] == f:
+            runs[-1][0] += ch
+        else:
+            runs.append([ch, f])
+    return runs
+
+
+def _render(s, size, color, path):
     # Font.draw는 부를 때마다 텍스처를 만들어서 느리다. 같은 글자는 한 번만 만든다.
-    key = (s, size, color[:3], font)
+    key = (s, size, color[:3], path)
     img = _texts.get(key)
     if img is None:
-        if len(_texts) > 3000:
+        if len(_texts) > 4000:
             _texts.clear()
-        surface = TTF_RenderUTF8_Blended(_font(font, size), s.encode('utf-8'), SDL_Color(*color[:3]))
+        surface = TTF_RenderUTF8_Blended(_font(path, size), s.encode('utf-8'), SDL_Color(*color[:3]))
         if not surface:
             return None
         texture = SDL_CreateTextureFromSurface(p2.renderer, surface)
@@ -112,28 +145,47 @@ def text_image(s, size=12, color=config.TEXT, font=config.FONT):
     return img
 
 
+def _baseline_offset(size, font):
+    # 세로 가운데(cy)에서 글자 기준선까지의 거리. 한글 폰트 줄 높이를 기준으로 맞춘다.
+    key = ('baseline', size, font)
+    if key not in _fonts:
+        path = config.UI_FONTS[font][1] if font in config.UI_FONTS else font
+        f = _font(path, size)
+        asc, desc = TTF_FontAscent(f), TTF_FontDescent(f)
+        _fonts[key] = (asc + desc) / 2
+    return _fonts[key]
+
+
 def text_width(s, size=12, font=config.FONT):
-    img = text_image(s, size, config.TEXT, font) if s else None
-    return img.w if img else 0
+    w = 0
+    for part, path in _runs(s, font):
+        img = _render(part, size, config.TEXT, path)
+        w += img.w if img else 0
+    return w
 
 
 def text(s, x, cy, size=12, color=config.TEXT, font=config.FONT, align='left'):
     """cy를 세로 가운데로 글자를 그린다. 그린 폭을 돌려준다."""
     if not s:
         return 0
-    img = text_image(s, size, color, font)
-    if img is None:
-        return 0
+    imgs = [(_render(part, size, color, path), path) for part, path in _runs(s, font)]
+    total = sum(img.w for img, path in imgs if img)
     if align == 'center':
-        x -= img.w / 2
+        x -= total / 2
     elif align == 'right':
-        x -= img.w
-    if len(color) > 3:
-        img.opacify(color[3] / 255)
-    img.draw_to_origin(int(x), int(cy - img.h / 2))
-    if len(color) > 3:
-        img.opacify(1)
-    return img.w
+        x -= total
+    baseline = cy - _baseline_offset(size, font)
+    for img, path in imgs:
+        if img is None:
+            continue
+        top = baseline + TTF_FontAscent(_font(path, size))
+        if len(color) > 3:
+            img.opacify(color[3] / 255)
+        img.draw_to_origin(int(x), int(round(top - img.h)))
+        if len(color) > 3:
+            img.opacify(1)
+        x += img.w
+    return total
 
 
 def symbol(code, x, cy, size=10, color=config.TEXT, align='center'):
@@ -172,6 +224,17 @@ def image(name):
         img = load_image(os.path.join(config.ASSETS, name))
         _images[name] = img
     return img
+
+
+def shortcut_arrow(l, b):
+    # 바로 가기 아이콘 왼쪽 아래의 작은 화살표
+    fill(l, b, 13, 13, config.WHITE)
+    frame(l, b, 13, 13, (130, 130, 130))
+    c = (0, 84, 166)
+    line(l + 3, b + 3, l + 9, b + 9, c)
+    line(l + 3, b + 4, l + 8, b + 9, c)
+    line(l + 5, b + 9, l + 9, b + 9, c)
+    line(l + 9, b + 5, l + 9, b + 9, c)
 
 
 def icon(name, size, l, b, alpha=None):
