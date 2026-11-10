@@ -3,151 +3,95 @@ import time
 import gfx
 from config import *
 
-G_BACK, G_FWD, G_UP, G_REFRESH, G_SEARCH = '\uE72B', '\uE72A', '\uE74A', '\uE72C', '\uE721'
-G_CHEVRON_R, G_CHEVRON_D, G_STAR, G_CLOUD, G_NETWORK = '\uE76C', '\uE70D', '\uE735', '\uE753', '\uE968'
-LINE = (229, 229, 229)
+G_BACK, G_FWD, G_REFRESH, G_SEARCH = '\uE72B', '\uE72A', '\uE72C', '\uE721'
 
 
 class App:
-    key = 'app'
+    key = 'app'            # 같은 키의 창은 하나만 연다
+    group = 'app'          # 작업 표시줄 단추 묶음
     title = ''
     icon = 'folder'
     size = (800, 520)
+    caption = ('min', 'max', 'close')
+    resizable = True
+    taskbar = True
+    center = False
 
     def draw(self, l, b, w, h, active):
         gfx.fill(l, b, w, h, WHITE)
 
+    def mouse_down(self, mx, my, now):
+        pass
 
-# ==================================================================== 파일 탐색기
-class Explorer(App):
-    size = (900, 560)
+    def mouse_move(self, mx, my):
+        pass
 
-    def __init__(self, key, title, icon, path, items, ribbon=('파일', '홈', '공유', '보기')):
-        self.key, self.title, self.icon = key, title, icon
-        self.path, self.items, self.ribbon = path, items, ribbon
+    def context(self, mx, my):
+        return None
+
+    def wheel(self, dy):
+        pass
+
+
+# ==================================================================== 메시지 상자
+class MessageBox(App):
+    group = 'dialog'
+    icon = 'explorer'
+    caption = ('close',)
+    resizable = False
+    taskbar = False
+    center = True
+    _count = 0
+
+    def __init__(self, title, lines, kind='error'):
+        MessageBox._count += 1
+        self.key = 'dialog#%d' % MessageBox._count
+        self.title, self.lines, self.kind = title, list(lines), kind
+        w = max(gfx.text_width(ln, 12) for ln in self.lines) + 100
+        self.size = (max(360, w), TITLE_H + 40 + 20 * len(self.lines) + 50)
+        self.button = (0, 0, 0, 0)
 
     def draw(self, l, b, w, h, active):
         top = b + h
         gfx.fill(l, b, w, h, WHITE)
-        # 리본 탭
-        y = top - 24
-        gfx.fill(l, y, w, 24, WHITE)
-        x = l
-        for i, tab in enumerate(self.ribbon):
-            tw = gfx.text_width(tab, 12) + 26
-            if i == 0:
-                gfx.fill(x, y, tw, 24, ACCENT)
-            gfx.text(tab, x + tw / 2, y + 12, 12, WHITE if i == 0 else TEXT, align='center')
-            x += tw
-        gfx.symbol('\uE70E', l + w - 40, y + 12, 10, TEXT_GRAY)
-        gfx.symbol('\uE897', l + w - 16, y + 12, 12, ACCENT)
-        gfx.line(l, y, l + w, y, LINE)
-        # 주소 표시줄
-        y -= 34
-        for i, g in enumerate((G_BACK, G_FWD, G_CHEVRON_D, G_UP)):
-            gfx.symbol(g, l + 16 + i * 26 - (6 if i == 2 else 0), y + 17, 10 if i != 2 else 8,
-                       (160, 160, 160) if i in (1, 2) else (60, 60, 60))
-        ax, aw = l + 112, w - 112 - 230
-        gfx.frame(ax, y + 5, aw, 24, (217, 217, 217))
-        gfx.icon(self.icon, 16, ax + 6, y + 9)
-        px = ax + 28
-        for part in self.path:
-            gfx.symbol(G_CHEVRON_R, px + 4, y + 17, 8, (110, 110, 110))
-            px += 14 + gfx.text(part, px + 12, y + 17, 12)
-        gfx.symbol(G_REFRESH, ax + aw - 14, y + 17, 10, (90, 90, 90))
-        sx = l + w - 220
-        gfx.frame(sx, y + 5, 210, 24, (217, 217, 217))
-        gfx.text(self.path[-1] + ' 검색', sx + 8, y + 17, 12, (120, 120, 120))
-        gfx.symbol(G_SEARCH, sx + 195, y + 17, 10, (90, 90, 90))
-        # 왼쪽 탐색 창
-        status_h = 22
-        nav_w = min(200, w // 4)
-        body_b, body_t = b + status_h, y - 4
-        nav = [('star', '바로 가기'), ('cloud', 'OneDrive'), ('this_pc', '내 PC'), ('net', '네트워크')]
-        ny = body_t - 18
-        for kind, name in nav:
-            if name == self.path[0]:
-                gfx.fill(l + 1, ny - 11, nav_w - 2, 22, SELECT_FILL)
-            if kind == 'this_pc':
-                gfx.icon('this_pc', 16, l + 26, ny - 8)
-            else:
-                g = {'star': G_STAR, 'cloud': G_CLOUD, 'net': G_NETWORK}[kind]
-                c = {'star': ACCENT, 'cloud': (40, 120, 220), 'net': (60, 90, 130)}[kind]
-                gfx.symbol(g, l + 34, ny, 14, c)
-            gfx.symbol(G_CHEVRON_R, l + 12, ny, 8, (150, 150, 150))
-            gfx.text(name, l + 50, ny, 12)
-            ny -= 30
-        gfx.line(l + nav_w, body_b, l + nav_w, body_t, LINE)
-        # 항목들
-        self.draw_items(l + nav_w + 1, body_b, w - nav_w - 1, body_t - body_b)
-        # 상태 표시줄
-        gfx.text('%d개 항목' % self.count(), l + 14, b + status_h / 2, 12)
+        cy = top - 24 - 10 * (len(self.lines) - 1)
+        gfx.circle(l + 38, cy, 16, CLOSE_RED if self.kind == 'error' else ACCENT)
+        gfx.symbol('\uE8BB' if self.kind == 'error' else '\uE946', l + 38, cy, 14, WHITE)
+        for i, ln in enumerate(self.lines):
+            gfx.text(ln, l + 68, top - 24 - i * 20, 12)
+        gfx.fill(l, b, w, 46, (240, 240, 240))
+        self.button = (l + w - 100, b + 11, 88, 24)
+        bl, bb, bw, bh = self.button
+        gfx.fill(bl, bb, bw, bh, (225, 225, 225))
+        gfx.frame(bl, bb, bw, bh, ACCENT if active else (173, 173, 173))
+        gfx.text('확인', bl + bw / 2, bb + bh / 2, 12, align='center')
 
-    def count(self):
-        return len(self.items)
-
-    def draw_items(self, l, b, w, h):
-        cell_w, cell_h = 96, 92
-        cols = max(1, (w - 16) // cell_w)
-        for i, (icon, name) in enumerate(self.items):
-            cx = l + 12 + (i % cols) * cell_w
-            ct = b + h - 10 - (i // cols) * cell_h
-            gfx.icon(icon, 48, cx + (cell_w - 48) / 2, ct - 54)
-            if icon == 'lock' or name.endswith('(잠김)'):
-                gfx.icon('lock', 16, cx + (cell_w - 48) / 2 + 34, ct - 54)
-            for j, ln in enumerate(gfx.wrap(name, cell_w - 8, 12)):
-                gfx.text(ln, cx + cell_w / 2, ct - 66 - j * 16, 12, align='center')
-
-
-class ThisPC(Explorer):
-    def __init__(self):
-        super().__init__('this_pc', '내 PC', 'this_pc', ['내 PC'], [])
-        self.ribbon = ('파일', '컴퓨터', '보기')
-
-    FOLDERS = ['3D 개체', '다운로드', '동영상', '문서', '바탕 화면', '사진', '음악']
-
-    def count(self):
-        return len(self.FOLDERS) + 2
-
-    def draw_items(self, l, b, w, h):
-        top = b + h - 8
-        folders = self.FOLDERS
-        y = self.group('폴더 (%d)' % len(folders), l, top, w)
-        cols = max(1, (w - 20) // 220)
-        for i, name in enumerate(folders):
-            x = l + 20 + (i % cols) * 220
-            yy = y - 30 - (i // cols) * 62
-            gfx.icon('folder', 48, x, yy - 24)
-            gfx.text(name, x + 58, yy, 12)
-        y -= 30 + ((len(folders) - 1) // cols + 1) * 62
-        y = self.group('장치 및 드라이브 (2)', l, y, w)
-        for i, (icon, name, used, info, locked) in enumerate((
-                ('drive', '로컬 디스크 (C:)', 0.62, '476GB 중 181GB 사용 가능', False),
-                ('usb', 'USB 드라이브 (E:)', 0.0, '접근 거부됨', True))):
-            x = l + 20 + i * 300
-            gfx.icon(icon, 48, x, y - 64)
-            if locked:
-                gfx.icon('lock', 24, x + 28, y - 64)
-            gfx.text(name, x + 58, y - 22, 12)
-            gfx.fill(x + 58, y - 44, 196, 14, (230, 230, 230))
-            gfx.frame(x + 58, y - 44, 196, 14, (188, 188, 188))
-            gfx.fill(x + 59, y - 43, int(194 * used), 12, (38, 160, 218))
-            gfx.text(info, x + 58, y - 58, 12, CLOSE_RED if locked else TEXT_GRAY)
-
-    def group(self, name, l, top, w):
-        gfx.symbol(G_CHEVRON_D, l + 14, top - 12, 8, (90, 90, 90))
-        tw = gfx.text(name, l + 26, top - 12, 12, (30, 57, 145))
-        gfx.line(l + 34 + tw, top - 12, l + w - 16, top - 12, LINE)
-        return top - 24
+    def mouse_down(self, mx, my, now):
+        bl, bb, bw, bh = self.button
+        if bl <= mx < bl + bw and bb <= my < bb + bh:
+            import shell
+            shell.close(self)
 
 
 # ==================================================================== 메모장
 class Notepad(App):
+    group = 'notepad'
+    icon = 'notepad'
     size = (640, 460)
+    _count = 0
 
-    def __init__(self, key, filename, lines):
-        self.key, self.title, self.icon = key, filename + ' - Windows 메모장', 'notepad'
-        self.lines = lines
+    def __init__(self, node):
+        Notepad._count += 1
+        self.node = node
+        self.key = 'notepad:%d' % node.id if node else 'notepad#%d' % Notepad._count
+
+    @property
+    def title(self):
+        return (self.node.name if self.node else '제목 없음') + ' - Windows 메모장'
+
+    @property
+    def lines(self):
+        return self.node.lines if self.node else []
 
     def draw(self, l, b, w, h, active):
         top = b + h
@@ -202,6 +146,7 @@ def draw_dino(l, b, px, color=(83, 83, 83)):
 
 
 class Browser(App):
+    group = 'browser'
     key, title, icon = 'browser', '새 탭 - Chrome', 'browser'
     size = (1000, 640)
 
@@ -238,6 +183,7 @@ class Browser(App):
 
 # ==================================================================== 그림판
 class Paint(App):
+    group = 'paint'
     key, title, icon = 'paint', '제목 없음 - 그림판', 'paint'
     size = (860, 600)
 
@@ -291,6 +237,7 @@ CODE = [
 
 
 class VSCode(App):
+    group = 'vscode'
     key, title, icon = 'vscode', 'escape.py - Visual Studio Code', 'vscode'
     size = (960, 600)
 
@@ -324,6 +271,7 @@ class VSCode(App):
 
 # ==================================================================== 카카오톡
 class Kakao(App):
+    group = 'kakao'
     key, title, icon = 'kakao', '카카오톡', 'kakao'
     size = (380, 600)
 
@@ -341,6 +289,7 @@ class Kakao(App):
 
 # ==================================================================== 명령 프롬프트
 class Terminal(App):
+    group = 'terminal'
     key, title, icon = 'terminal', '명령 프롬프트', 'terminal'
     size = (720, 420)
 
@@ -356,26 +305,4 @@ class Terminal(App):
 
 
 # ==================================================================== 프로그램 목록
-def documents():
-    return Explorer('documents', '문서', 'folder', ['내 PC', '문서'],
-                    [('folder', '과제'), ('folder', '사진 백업'), ('folder', '숨겨진 폴더'),
-                     ('text_file', '탈출 계획.txt'), ('text_file', 'readme.txt'), ('usb', 'USB 열쇠 (잠김)')])
-
-
-def recycle_bin():
-    return Explorer('recycle_bin', '휴지통', 'recycle_bin', ['휴지통'],
-                    [('text_file', '비밀번호 힌트.txt'), ('folder', '옛날 드라이버'), ('text_file', 'key_part_2.txt')],
-                    ribbon=('파일', '홈', '공유', '보기', '관리'))
-
-
-def escape_note():
-    return Notepad('notepad', '탈출 계획.txt',
-                   ['1. 바탕화면에서 나가는 길 찾기', '2. 인터넷 차단기 끄기',
-                    '3. %appdata% 권한 얻기', '4. 휴지통 열기', '5. 나를 압축해서 USB로 내보내기', '',
-                    '- 포인터'])
-
-
-APPS = {
-    'this_pc': ThisPC, 'recycle_bin': recycle_bin, 'documents': documents, 'notepad': escape_note,
-    'browser': Browser, 'paint': Paint, 'vscode': VSCode, 'kakao': Kakao, 'terminal': Terminal,
-}
+APPS = {'browser': Browser, 'paint': Paint, 'vscode': VSCode, 'kakao': Kakao, 'terminal': Terminal}
