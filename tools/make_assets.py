@@ -23,11 +23,12 @@ def vgrad(d, box, top, bottom):
 
 
 # ------------------------------------------------------------ 아이콘
-def folder():
+def folder(paper=True):
     img, d = canvas()
     d.rounded_rectangle((16, 36, 116, 72), 8, fill=(219, 157, 38))
     d.rounded_rectangle((16, 52, 240, 220), 10, fill=(224, 166, 48))
-    d.rectangle((30, 66, 226, 200), fill=(246, 246, 246))
+    if paper:
+        d.rectangle((30, 66, 226, 200), fill=(246, 246, 246))
     front = Image.new('RGBA', (256, 256))
     fd = ImageDraw.Draw(front)
     vgrad(fd, (8, 84, 248, 224), (255, 222, 120, 255), (252, 196, 64, 255))
@@ -50,13 +51,45 @@ def this_pc():
     return img
 
 
-def recycle_bin():
+def folder_empty():
+    return folder(paper=False)
+
+
+def explorer():
+    # 파일 탐색기: 노란 폴더 아래에 파란 손잡이 띠
+    img = folder()
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle((70, 150, 186, 196), 10, fill=(37, 133, 214))
+    d.rounded_rectangle((90, 162, 166, 184), 6, fill=(120, 196, 245))
+    return img
+
+
+def recycle_bin(full=False):
     img, d = canvas()
+    if full:
+        d.polygon([(70, 40), (150, 20), (170, 90), (90, 110)], fill=(255, 255, 255), outline=(150, 160, 170))
+        d.polygon([(120, 30), (200, 50), (180, 110), (100, 90)], fill=(250, 240, 200), outline=(180, 160, 110))
     d.polygon([(60, 70), (196, 70), (182, 232), (74, 232)], fill=(225, 236, 248, 230), outline=(120, 140, 165))
     for x in (96, 128, 160):
         d.line([(x, 92), (x - (x - 128) * 0.12, 214)], fill=(140, 160, 185), width=6)
-    d.rounded_rectangle((48, 46, 208, 72), 6, fill=(200, 214, 230), outline=(120, 140, 165), width=3)
-    d.rounded_rectangle((104, 30, 152, 48), 4, outline=(120, 140, 165), width=5)
+    if not full:
+        d.rounded_rectangle((48, 46, 208, 72), 6, fill=(200, 214, 230), outline=(120, 140, 165), width=3)
+        d.rounded_rectangle((104, 30, 152, 48), 4, outline=(120, 140, 165), width=5)
+    else:
+        d.rounded_rectangle((52, 62, 204, 80), 6, fill=(200, 214, 230), outline=(120, 140, 165), width=3)
+    return img
+
+
+def recycle_bin_full():
+    return recycle_bin(full=True)
+
+
+def image_file():
+    img = text_file()
+    d = ImageDraw.Draw(img)
+    d.rectangle((70, 84, 186, 200), fill=(140, 200, 245))
+    d.polygon([(70, 200), (110, 140), (140, 176), (160, 156), (186, 200)], fill=(60, 150, 70))
+    d.ellipse((150, 96, 172, 118), fill=(255, 220, 80))
     return img
 
 
@@ -115,11 +148,13 @@ def kakao():
 
 
 def terminal():
+    # 명령 프롬프트: 회색 제목 띠가 있는 검은 창에 C:\_
     img, d = canvas()
-    d.rounded_rectangle((16, 36, 240, 220), 10, fill=(12, 12, 12), outline=(90, 90, 90), width=4)
-    d.rectangle((18, 38, 238, 66), fill=(60, 60, 60))
-    d.line([(52, 104), (96, 136), (52, 168)], fill=(230, 230, 230), width=14, joint='curve')
-    d.line([(112, 176), (176, 176)], fill=(230, 230, 230), width=14)
+    d.rectangle((14, 34, 242, 222), fill=(12, 12, 12), outline=(110, 110, 110), width=4)
+    d.rectangle((16, 36, 240, 70), fill=(190, 190, 190))
+    f = ImageFont.truetype('C:/Windows/Fonts/consolab.ttf', 78)
+    d.text((34, 150), 'C:\\', font=f, fill=(220, 220, 220), anchor='lm')
+    d.rectangle((170, 172, 214, 184), fill=(220, 220, 220))
     return img
 
 
@@ -173,9 +208,11 @@ def windows_logo():
 
 
 ICONS = {
-    'folder': folder, 'this_pc': this_pc, 'recycle_bin': recycle_bin, 'browser': browser,
+    'folder': folder, 'folder_empty': folder_empty, 'explorer': explorer, 'this_pc': this_pc,
+    'recycle_bin': recycle_bin, 'recycle_bin_full': recycle_bin_full, 'browser': browser,
     'notepad': notepad, 'paint': paint, 'vscode': vscode, 'kakao': kakao, 'terminal': terminal,
-    'usb': usb, 'text_file': text_file, 'drive': drive, 'lock': lock, 'windows_logo': windows_logo,
+    'usb': usb, 'text_file': text_file, 'image_file': image_file, 'drive': drive, 'lock': lock,
+    'windows_logo': windows_logo,
 }
 
 
