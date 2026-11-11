@@ -31,15 +31,16 @@ class OSWindow:
         l, b, w, h = self.rect()
         e = 0 if self.state == 'max' else 1
         top, r = b + h - e, l + w - e
+        names = [n for n in ('close', 'max', 'min') if n in self.app.caption]
         return [(name, r - CAPTION_BTN_W * (i + 1), top - TITLE_H + e, CAPTION_BTN_W, TITLE_H - e)
-                for i, name in enumerate(('close', 'max', 'min'))]
+                for i, name in enumerate(names)]
 
     # ---------------------------------------------------------------- 마우스 판정
     def hit(self, mx, my):
         """('resize', 가장자리 문자열) / ('close'|'max'|'min'|'title'|'client', None) / None"""
         l, b, w, h = self.rect()
         r, t = l + w, b + h
-        if self.state == 'normal':
+        if self.state == 'normal' and self.app.resizable:
             g = RESIZE_GRIP
             if l - g <= mx < r + g and b - g <= my < t + g:
                 edge = ''
@@ -64,6 +65,8 @@ class OSWindow:
 
     # ---------------------------------------------------------------- 상태 바꾸기
     def toggle_max(self):
+        if not self.app.resizable:
+            return
         if self.state == 'max':
             self.state = 'normal'
         else:
@@ -156,10 +159,13 @@ class WindowManager:
             self.focus(win)
             return win
         w, h = app.size
-        x = 140 + 32 * (self.cascade % 8)
-        y = H - 90 - 32 * (self.cascade % 8) - h
-        self.cascade += 1
-        win = OSWindow(app, x, max(TASKBAR_H + 10, y), w, h)
+        if app.center:
+            x, y = (W - w) // 2, (H + TASKBAR_H - h) // 2
+        else:
+            x = 140 + 32 * (self.cascade % 8)
+            y = max(TASKBAR_H + 10, H - 90 - 32 * (self.cascade % 8) - h)
+            self.cascade += 1
+        win = OSWindow(app, x, y, w, h)
         self.windows.append(win)
         self.focus(win)
         return win
@@ -230,6 +236,34 @@ class WindowManager:
             return
         win, part = self.hit(mx, my)
         self.hover = (win, part[0]) if part and part[0] in ('min', 'max', 'close') else None
+        for w in self.visible():
+            if w is win and part and part[0] == 'client':
+                w.app.mouse_move(mx, my)
+            else:
+                w.app.mouse_move(None, None)
+
+    def context(self, mx, my):
+        """오른쪽 클릭: 창 위면 메뉴 항목 목록(없으면 []), 창 밖이면 None"""
+        from context_menu import Item, SEP
+        win, part = self.hit(mx, my)
+        if not win:
+            return None
+        self.focus(win)
+        if part[0] == 'client':
+            return win.app.context(mx, my) or []
+        if part[0] == 'resize':
+            return []
+        big = win.state == 'max'
+        return [Item('이전 크기로(R)', win.toggle_max, enabled=big and win.app.resizable),
+                Item('이동(M)', enabled=False), Item('크기 조정(S)', enabled=False),
+                Item('최소화(N)', lambda: self.minimize(win), enabled='min' in win.app.caption),
+                Item('최대화(X)', win.toggle_max, enabled=not big and win.app.resizable), SEP,
+                Item('닫기(C)', lambda: self.close(win), bold=True)]
+
+    def wheel(self, mx, my, dy):
+        win, part = self.hit(mx, my)
+        if win and part[0] == 'client':
+            win.app.wheel(dy)
 
     def mouse_down(self, mx, my, now):
         win, part = self.hit(mx, my)
@@ -250,6 +284,8 @@ class WindowManager:
                 return True
             self.last_title_click = (win, now)
             self.drag = ('move', win, None, (mx, my), start)
+        elif kind == 'client':
+            win.app.mouse_down(mx, my, now)
         return True
 
     def mouse_up(self, mx, my):

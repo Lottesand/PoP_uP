@@ -5,9 +5,9 @@ from config import *
 
 SEARCH_W = 344
 BTN_W = 48
-PINNED = ['documents', 'browser']
-ICON_OF = {'documents': 'folder', 'browser': 'browser', 'this_pc': 'this_pc', 'recycle_bin': 'recycle_bin',
-           'notepad': 'notepad', 'paint': 'paint', 'vscode': 'vscode', 'kakao': 'kakao', 'terminal': 'terminal'}
+PINNED = ['explorer', 'browser']
+ICON_OF = {'explorer': 'explorer', 'browser': 'browser', 'notepad': 'notepad', 'paint': 'paint', 'vscode': 'vscode',
+           'kakao': 'kakao', 'terminal': 'terminal'}
 
 
 class Taskbar:
@@ -20,11 +20,11 @@ class Taskbar:
         return my < TASKBAR_H
 
     def apps(self, wm):
-        keys = list(PINNED)
+        groups = list(PINNED)
         for win in wm.windows:
-            if win.app.key not in keys:
-                keys.append(win.app.key)
-        return keys
+            if win.app.taskbar and win.app.group not in groups:
+                groups.append(win.app.group)
+        return groups
 
     def zones(self, wm):
         z = [('start', 0, BTN_W), ('search', BTN_W, SEARCH_W), ('taskview', BTN_W + SEARCH_W, BTN_W)]
@@ -92,14 +92,20 @@ class Taskbar:
                 if name == 'usb' and self.usb_locked:
                     gfx.icon('lock', 16, x + w / 2 + 1, cy - 14)
 
-    def draw_app(self, key, x, w, wm, hot):
-        win = wm.find(key)
-        active = win is not None and win is wm.active
+    def draw_app(self, group, x, w, wm, hot):
+        wins = group_windows(wm, group)
+        win = wins[-1] if wins else None
+        active = wm.active in wins
         if active:
             gfx.fill(x, 0, w, TASKBAR_H, (255, 255, 255, 50 if hot else 38))
         elif hot:
             gfx.fill(x, 0, w, TASKBAR_H, (255, 255, 255, 25))
-        gfx.icon(ICON_OF.get(key, 'folder'), 24, x + (w - 24) / 2, TASKBAR_H / 2 - 12)
+        gfx.icon(ICON_OF.get(group, win.app.icon if win else 'folder'), 24, x + (w - 24) / 2, TASKBAR_H / 2 - 12)
         if win:
             inset = 0 if active or hot else 4
             gfx.fill(x + inset, 0, w - 2 * inset, 2, ACCENT_LIGHT)
+
+
+def group_windows(wm, group):
+    """작업 표시줄 단추 하나에 묶인 창들 (뒤 → 앞)"""
+    return [w for w in wm.windows if w.app.group == group]

@@ -11,7 +11,7 @@ LIST = [
     ('ㄱ', None, None), ('paint', '그림판', 'paint'),
     ('ㅁ', None, None), ('terminal', '명령 프롬프트', 'terminal'), ('notepad', '메모장', 'notepad'),
     ('ㅋ', None, None), ('kakao', '카카오톡', 'kakao'),
-    ('ㅍ', None, None), ('documents', '파일 탐색기', 'folder'),
+    ('ㅍ', None, None), ('explorer', '파일 탐색기', 'explorer'),
 ]
 TILES = [('this_pc', '내 PC', 'this_pc'), ('documents', '문서', 'folder'), ('browser', 'Chrome', 'browser'),
          ('notepad', '메모장', 'notepad'), ('paint', '그림판', 'paint'), ('recycle_bin', '휴지통', 'recycle_bin')]
