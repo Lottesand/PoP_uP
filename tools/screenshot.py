@@ -34,16 +34,25 @@ def main(out):
     play_mode.init()
     shot(os.path.join(out, '1_desktop.png'))
 
-    for key in ('this_pc', 'browser', 'notepad'):
+    for key in ('this_pc', 'browser', 'documents'):
         play_mode.open_app(key)
-    play_mode.desktop.selected = 3
+    play_mode.desktop.selected = play_mode.desktop.folder.children[3]
     play_mode.mouse_move(W - 46 / 2 - 400, 0)
     shot(os.path.join(out, '2_windows.png'))
 
-    for key in ('vscode', 'paint', 'kakao', 'terminal', 'documents', 'recycle_bin'):
+    for key in ('vscode', 'paint', 'kakao', 'terminal', 'recycle_bin'):
         play_mode.open_app(key)
     play_mode.start.open = True
     shot(os.path.join(out, '3_more.png'))
+
+    # 오른쪽 클릭 메뉴 → 새로 만들기 하위 메뉴
+    play_mode.start.open = False
+    play_mode.right_down(1500, 700)
+    menu = play_mode.shell.menu
+    for i, item, b, h in menu.rows():
+        if item and item.label.startswith('새로 만들기'):
+            play_mode.mouse_move(menu.l + 40, b + h // 2)
+    shot(os.path.join(out, '4_context_menu.png'))
     close_canvas()
 
 
