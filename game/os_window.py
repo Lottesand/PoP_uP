@@ -12,6 +12,7 @@ class OSWindow:
         self.x, self.y, self.w, self.h = x, y, w, h
         self.state = 'normal'          # normal | max | min
         self.saved_state = 'normal'    # 최소화 직전 상태 (복원할 때 씀)
+        self.torn = {}                 # 포인터가 뜯어 간 버튼 이름 → 다시 생길 때까지 남은 초
 
     @property
     def title(self):
@@ -58,7 +59,7 @@ class OSWindow:
             return None
         if my >= t - TITLE_H:
             for name, bl, bb, bw, bh in self.caption_buttons():
-                if bl <= mx < bl + bw:
+                if bl <= mx < bl + bw and name not in self.torn:
                     return name, None
             return 'title', None
         return 'client', None
@@ -87,16 +88,17 @@ class OSWindow:
 
     def resize(self, edge, start, dx, dy):
         x, y, w, h = start
+        min_w, min_h = self.app.min_size
         if 'l' in edge:
-            nw = max(WIN_MIN_W, w - dx)
+            nw = max(min_w, w - dx)
             x, w = x + w - nw, nw
         if 'r' in edge:
-            w = max(WIN_MIN_W, w + dx)
+            w = max(min_w, w + dx)
         if 'b' in edge:
-            nh = max(WIN_MIN_H, h - dy)
+            nh = max(min_h, h - dy)
             y, h = y + h - nh, nh
         if 't' in edge:
-            h = max(WIN_MIN_H, min(H - y, h + dy))
+            h = max(min_h, min(H - y, h + dy))
         self.x, self.y, self.w, self.h = x, y, w, h
 
     # ---------------------------------------------------------------- 그리기
@@ -121,6 +123,11 @@ class OSWindow:
         gfx.text(self.title, l + 32, cy, 12, tc)
         for name, bl, bb, bw, bh in self.caption_buttons():
             gc = tc
+            if name in self.torn:
+                # 뜯긴 자리: 비어 있는 홈
+                gfx.fill(bl + 4, bb + 4, bw - 8, bh - 8, (236, 236, 236))
+                gfx.frame(bl + 4, bb + 4, bw - 8, bh - 8, (215, 215, 215))
+                continue
             if name == hover or name == pressed:
                 if name == 'close':
                     gfx.fill(bl, bb, bw, bh, CLOSE_RED_PRESSED if name == pressed else CLOSE_RED)
@@ -303,11 +310,21 @@ class WindowManager:
                     self.minimize(win)
 
     # ---------------------------------------------------------------- 그리기
-    def draw(self):
+    def update(self, dt):
+        for win in self.windows:
+            for name in list(win.torn):
+                win.torn[name] -= dt
+                if win.torn[name] <= 0:
+                    del win.torn[name]
+
+    def draw(self, after=None):
+        """after(win): 창 하나를 그린 직후 그 창 층에 있는 것(포인터 등)을 그린다"""
         for win in self.visible():
             hover = self.hover[1] if self.hover and self.hover[0] is win else None
             pressed = self.pressed[1] if self.pressed and self.pressed[0] is win else None
             win.draw(win is self.active, hover, pressed)
+            if after:
+                after(win)
 
 
 _EDGE_CURSOR = {'l': 'we', 'r': 'we', 't': 'ns', 'b': 'ns',
