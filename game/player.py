@@ -91,6 +91,56 @@ class Pointer:
             elif not down and self.vy > 0:
                 self.vy *= JUMP_CUT
 
+    def toggle(self, wm):
+        if self.switch_cd > 0:
+            return False
+        if self.mode == 'off':
+            target = self.window_to_enter(wm)
+            if target is None:
+                self.fail_t = 0.25
+                return False
+            self.enter(target)
+        else:
+            self.pop_out()
+        self.switch_cd = SWITCH_COOLDOWN
+        return True
+
+    def window_to_enter(self, wm):
+        for win in reversed(wm.visible()):
+            l, b, w, h = win.rect()
+            overlap = self.x < l + w and self.x + PW > l and self.y < b + h and self.y + PH > b
+            if overlap or self.ground is win:
+                return win
+        return None
+
+    def enter(self, win):
+        self.mode, self.win, self.layer = 'on', win, win
+        l, b, w, h = win.client_rect()
+        self.x = min(max(self.x, l), l + w - PW)
+        if self.y + PH > b + h or self.ground is win:
+            self.y = b + h - PH
+        self.y = max(b, self.y)
+        self.vy = 0
+        self.ground = None
+        self.set_anchor(win)
+
+    def pop_out(self):
+        win = self.win
+        l, b, w, h = win.rect()
+        self.mode, self.win = 'off', None
+        self.x = min(max(self.x, l), l + w - PW)
+        self.y = b + h
+        self.vy = POP_SPEED
+        self.ground = None
+        self.layer = win
+        self.set_anchor(None)
+
+    def force_out(self):
+        # 들어가 있던 창이 닫히거나 최소화되면 그 자리에서 밖으로 떨어진다
+        self.mode, self.win, self.layer = 'off', None, None
+        self.ground = None
+        self.set_anchor(None)
+
     def set_anchor(self, win):
         if win is None:
             self.anchor = None
