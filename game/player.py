@@ -23,6 +23,8 @@ EAT_HEAL, EAT_COOLDOWN = 12, 8.0
 BUTTON_RESPAWN = 10.0
 MAX_HP = 100
 
+GLYPH = {'min': '', 'max': '', 'close': ''}
+
 
 # ==================================================================== 발판 계산
 def subtract(spans, cut0, cut1):
@@ -54,6 +56,51 @@ def os_platforms(wm):
                 spans = subtract(spans, al, al + aw)
         plats += [(a, b_, top, win) for a, b_ in spans if b_ - a >= 8]
     return plats
+
+
+# ==================================================================== 던진 버튼
+class Thrown:
+    def __init__(self, name, x, y, vx, vy, win):
+        self.name, self.x, self.y, self.vx, self.vy = name, x, y, vx, vy
+        self.win = win                  # 창 안에서 던졌으면 그 창 (그 창 층에, 그 창 안에서만 날아간다)
+        self.age = 0.0
+        self.dead = False
+
+    def bounds(self):
+        if self.win is not None:
+            return self.win.client_rect()
+        return 0, TASKBAR_H, W, H - TASKBAR_H
+
+    def update(self, dt):
+        self.age += dt
+        self.vy -= THROW_GRAVITY * dt
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        l, b, w, h = self.bounds()
+        if self.win is not None and self.win.state == 'min':
+            self.dead = True
+        if not (l + 12 <= self.x <= l + w - 12 and b + 8 <= self.y <= b + h - 8) or self.age > 3:
+            self.dead = True
+
+    def draw(self):
+        if self.win is not None:
+            gfx.push_clip(*self.win.client_rect())
+        draw_button(self.name, self.x, self.y)
+        if self.win is not None:
+            gfx.pop_clip()
+
+
+def draw_button(name, cx, cy, scale=1.0):
+    w, h = 30 * scale, 22 * scale
+    l, b = cx - w / 2, cy - h / 2
+    if name == 'close':
+        gfx.fill(l, b, w, h, CLOSE_RED)
+        c = WHITE
+    else:
+        gfx.fill(l, b, w, h, (238, 238, 238))
+        c = TEXT
+    gfx.frame(l, b, w, h, (90, 90, 90))
+    gfx.symbol(GLYPH[name], cx, cy, int(9 * scale), c)
 
 
 # ==================================================================== 포인터
@@ -147,6 +194,47 @@ class Pointer:
         else:
             l, b, w, h = win.rect()
             self.anchor = (win, l, b + h)
+
+    # ---------------------------------------------------------------- 버튼 뜯기 · 던지기 · 먹기
+    def center(self):
+        return self.x + PW / 2, self.y + PH / 2
+
+    def grab(self, mx, my, wm):
+        if self.mode != 'on' or self.held:
+            return False
+        win, part = wm.hit(mx, my)
+        if win is None or part[0] not in GLYPH:
+            return False
+        for name, bl, bb, bw, bh in win.caption_buttons():
+            if name == part[0]:
+                cx, cy = self.center()
+                if math.hypot(bl + bw / 2 - cx, bb + bh / 2 - cy) > GRAB_RANGE:
+                    return False
+                win.torn[name] = BUTTON_RESPAWN
+                self.held = name
+                return True
+        return False
+
+    def hand(self):
+        return self.x + PW / 2 + self.facing * 18, self.y + PH - 12
+
+    def throw(self, mx, my):
+        if not self.held:
+            return None
+        hx, hy = self.hand()
+        dx, dy = mx - hx, my - hy
+        d = math.hypot(dx, dy) or 1
+        t = Thrown(self.held, hx, hy, dx / d * THROW_SPEED, dy / d * THROW_SPEED, self.win)
+        self.held = None
+        return t
+
+    def eat(self):
+        if not self.held or self.eat_cd > 0:
+            return False
+        self.held = None
+        self.hp = min(MAX_HP, self.hp + EAT_HEAL)
+        self.eat_cd = EAT_COOLDOWN
+        return True
 
     # ---------------------------------------------------------------- 물리
     def update(self, dt, wm):
@@ -254,3 +342,29 @@ class Pointer:
             draw_button(self.held, hx + shake + self.facing * 12, hy, 0.8)
         if self.mode == 'on':
             gfx.pop_clip()
+
+    def draw_hud(self):
+        # 작업 표시줄 바로 위: HP 막대, 손 슬롯, Q 쿨타임, 모드
+        l, b = 12, TASKBAR_H + 10
+        gfx.fill(l - 6, b - 6, 360, 34, (0, 0, 0, 120))
+        gfx.text('HP', l, b + 11, 12, WHITE, FONT_BOLD)
+        gfx.fill(l + 26, b + 6, 200, 10, (60, 60, 60))
+        k = self.hp / MAX_HP
+        gfx.fill(l + 26, b + 6, int(200 * k), 10, (19, 161, 14) if k > 0.3 else CLOSE_RED)
+        sx = l + 238
+        gfx.frame(sx, b, 34, 22, (200, 200, 200))
+        if self.held:
+            draw_button(self.held, sx + 17, b + 11, 0.85)
+        q = 'Q' if self.eat_cd <= 0 else '%d' % math.ceil(self.eat_cd)
+        gfx.text(q, sx + 46, b + 11, 12, WHITE if self.eat_cd <= 0 else (150, 150, 150), FONT_BOLD)
+        gfx.text('Shift ' + self.mode.upper(), sx + 66, b + 11, 12, ACCENT_LIGHT if self.mode == 'on' else WHITE)
+
+
+def draw_crosshair(mx, my):
+    for dx, dy in ((1, 1), (0, 0)):
+        c = BLACK if dx else CLOSE_RED
+        gfx.line(mx - 12 + dx, my + dy, mx - 4 + dx, my + dy, c)
+        gfx.line(mx + 4 + dx, my + dy, mx + 12 + dx, my + dy, c)
+        gfx.line(mx + dx, my - 12 + dy, mx + dx, my - 4 + dy, c)
+        gfx.line(mx + dx, my + 4 + dy, mx + dx, my + 12 + dy, c)
+    gfx.fill(mx - 1, my - 1, 3, 3, CLOSE_RED)
