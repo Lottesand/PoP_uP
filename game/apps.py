@@ -12,6 +12,7 @@ class App:
     title = ''
     icon = 'folder'
     size = (800, 520)
+    min_size = (WIN_MIN_W, WIN_MIN_H)
     caption = ('min', 'max', 'close')
     resizable = True
     taskbar = True
@@ -31,6 +32,10 @@ class App:
 
     def wheel(self, dy):
         pass
+
+    def platforms(self):
+        """창 안(Shift ON)에서 밟을 수 있는 발판 (x0, x1, y). 화면 좌표"""
+        return []
 
 
 # ==================================================================== 메시지 상자

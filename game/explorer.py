@@ -23,6 +23,7 @@ def noop():
 class Explorer(App):
     group = 'explorer'
     size = (900, 560)
+    min_size = (460, 300)
     _count = 0
 
     def __init__(self, node):
@@ -125,6 +126,16 @@ class Explorer(App):
         if last is node and now - t < DOUBLE_CLICK:
             self.last_click = (None, -1.0)
             self.open(node)
+
+    def platforms(self):
+        # 항목 아이콘 칸의 윗면을 발판으로 쓴다 (내용 영역 안에 보이는 것만)
+        cl, cb, cw, ch = self.content
+        out = []
+        for node, (l, b, w, h) in self.items:
+            top = b + h
+            if cb < top < cb + ch:
+                out.append((max(l, cl), min(l + w, cl + cw), top))
+        return out
 
     def wheel(self, dy):
         self.scroll = max(0, self.scroll - dy * 60)
