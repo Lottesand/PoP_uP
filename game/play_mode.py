@@ -10,12 +10,17 @@ from desktop import Desktop
 from taskbar import Taskbar, group_windows
 from start_menu import StartMenu
 from os_window import WindowManager
+from player import Pointer, draw_crosshair
 
 desktop = None
 taskbar = None
 start = None
 wm = None
+player = None
+thrown = []
 mouse = (0, 0)
+cursor_hidden = False
+PLAYER_KEYS = {SDLK_a: 'left', SDLK_d: 'right', SDLK_SPACE: 'jump'}
 
 
 def open_app(key):
@@ -23,13 +28,15 @@ def open_app(key):
 
 
 def init():
-    global desktop, taskbar, start, wm
+    global desktop, taskbar, start, wm, player, thrown
     wm = WindowManager()
     shell.wm = wm
     shell.close_menu()
     desktop = Desktop()
     taskbar = Taskbar()
     start = StartMenu()
+    player = Pointer()
+    thrown = []
 
 
 def finish():
@@ -77,6 +84,9 @@ def menu_click(mx, my):
 
 def mouse_down(mx, my):
     now = get_time()
+    if player.mode == 'on':
+        player.grab(mx, my, wm)
+        return
     if menu_click(mx, my):
         return
     if start.open:
@@ -100,6 +110,11 @@ def mouse_down(mx, my):
 
 
 def right_down(mx, my):
+    if player.mode == 'on':
+        t = player.throw(mx, my)
+        if t:
+            thrown.append(t)
+        return
     shell.close_menu()
     start.open = False
     if taskbar.contains(mx, my):
@@ -125,6 +140,9 @@ def mouse_up(mx, my):
 def mouse_move(mx, my):
     global mouse
     mouse = (mx, my)
+    player.aim = (mx, my)
+    if player.mode == 'on':
+        return
     wm.mouse_move(mx, my)
     if wm.drag:
         gfx.set_cursor(wm.cursor_for(mx, my))
@@ -141,8 +159,25 @@ def mouse_move(mx, my):
     gfx.set_cursor('arrow' if on_menu or taskbar.hover else wm.cursor_for(mx, my))
 
 
+def switch_mode():
+    if not player.toggle(wm):
+        return
+    if player.mode == 'on':
+        # 침투 모드에서는 마우스가 조준선이 된다: 열린 메뉴와 끌던 창을 놓는다
+        shell.close_menu()
+        start.open = False
+        wm.drag = wm.pressed = None
+        desktop.press, desktop.dragging = None, False
+
+
 def key_down(key):
-    if key == SDLK_ESCAPE:
+    if key in PLAYER_KEYS:
+        player.key(PLAYER_KEYS[key], True)
+    elif key in (SDLK_LSHIFT, SDLK_RSHIFT):
+        switch_mode()
+    elif key == SDLK_q:
+        player.eat()
+    elif key == SDLK_ESCAPE:
         if shell.menu or start.open:
             shell.close_menu()
             start.open = False
@@ -167,6 +202,8 @@ def handle_events():
             game_framework.quit()
         elif event.type == SDL_KEYDOWN:
             key_down(event.key)
+        elif event.type == SDL_KEYUP and event.key in PLAYER_KEYS:
+            player.key(PLAYER_KEYS[event.key], False)
         elif event.type == SDL_MOUSEWHEEL:
             wm.wheel(mouse[0], mouse[1], event.y)
         elif event.type in (SDL_MOUSEMOTION, SDL_MOUSEBUTTONDOWN, SDL_MOUSEBUTTONUP):
@@ -176,24 +213,50 @@ def handle_events():
             elif event.button == SDL_BUTTON_LEFT:
                 if event.type == SDL_MOUSEBUTTONDOWN:
                     mouse_down(mx, my)
-                else:
+                elif player.mode == 'off':
                     mouse_up(mx, my)
             elif event.button == SDL_BUTTON_RIGHT and event.type == SDL_MOUSEBUTTONDOWN:
                 right_down(mx, my)
 
 
 def update():
-    pass
+    global cursor_hidden
+    dt = min(game_framework.frame_time, 1 / 30)
+    wm.update(dt)
+    player.update(dt, wm)
+    for t in thrown:
+        t.update(dt)
+    thrown[:] = [t for t in thrown if not t.dead]
+    # 침투 모드에서만 실제 마우스 커서를 숨긴다 (창이 닫혀 밖으로 밀려나도 다시 보이게)
+    if (player.mode == 'on') != cursor_hidden:
+        cursor_hidden = player.mode == 'on'
+        if cursor_hidden:
+            hide_cursor()
+        else:
+            show_cursor()
+
+
+def draw_layer(win):
+    """win 창 바로 위 층(None이면 바탕화면 층)에 있는 포인터와 던진 버튼"""
+    for t in thrown:
+        if t.win is win:
+            t.draw()
+    if player.layer is win:
+        player.draw()
 
 
 def render():
     desktop.draw()
-    wm.draw()
+    draw_layer(None)
+    wm.draw(draw_layer)
     desktop.draw_drag()
     taskbar.draw(wm, start.open)
+    player.draw_hud()
     start.draw()
     if shell.menu:
         shell.menu.draw()
+    if player.mode == 'on':
+        draw_crosshair(*mouse)
 
 
 def draw():

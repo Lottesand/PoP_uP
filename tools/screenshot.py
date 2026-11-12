@@ -53,6 +53,24 @@ def main(out):
         if item and item.label.startswith('새로 만들기'):
             play_mode.mouse_move(menu.l + 40, b + h // 2)
     shot(os.path.join(out, '4_context_menu.png'))
+
+    # 포인터: 탐색기 창 안(Shift ON)에서 닫기 버튼을 뜯어 든 모습
+    play_mode.shell.close_menu()
+    for win in list(play_mode.wm.windows):
+        play_mode.wm.close(win)
+    play_mode.open_app('documents')
+    win = play_mode.wm.active
+    p = play_mode.player
+    l, b, w, h = win.rect()
+    p.x, p.y, p.ground = l + w - 200, b + h, win
+    play_mode.switch_mode()
+    name, bl, bb, bw, bh = win.caption_buttons()[0]
+    play_mode.mouse_down(bl + 10, bb + 10)             # 들어가자마자 (버튼과 가까울 때) 뜯기
+    play_mode.game_framework.frame_time = 1 / 60
+    for _ in range(40):
+        play_mode.update()
+    play_mode.mouse_move(l + 200, b + 150)
+    shot(os.path.join(out, '5_pointer.png'))
     close_canvas()
 
 
