@@ -23,6 +23,8 @@ THROW_GRAVITY = 600
 EAT_HEAL, EAT_COOLDOWN = 12, 8.0
 BUTTON_RESPAWN = 10.0
 MAX_HP = 100
+INVINCIBLE = 1.0               # 맞은 뒤 무적 시간
+KNOCKBACK = 300
 
 GLYPH = {'min': '\uE921', 'max': '\uE922', 'close': '\uE8BB'}
 
@@ -124,7 +126,10 @@ class Pointer:
         self.eat_cd = 0.0
         self.switch_cd = 0.0
         self.fail_t = 0.0               # 전환 실패 흔들림
-        self.hurt_t = 0.0
+        self.hurt_t = 0.0               # x_x 표정
+        self.invincible = 0.0
+        self.kb = 0.0                   # 넉백 가로 속도 (점점 줄어든다)
+        self.dead = False
         self.aim = (W / 2, H / 2)
 
     # ---------------------------------------------------------------- 입력
@@ -244,8 +249,28 @@ class Pointer:
         self.eat_cd = EAT_COOLDOWN
         return True
 
+    # ---------------------------------------------------------------- 피격
+    def hurt(self, damage, from_x):
+        """맞았으면 True. 무적 중이거나 이미 쓰러졌으면 무시한다"""
+        if self.invincible > 0 or self.dead or damage <= 0:
+            return False
+        self.hp = max(0, self.hp - damage)
+        self.invincible = INVINCIBLE
+        self.hurt_t = 0.5
+        self.kb = KNOCKBACK if self.center()[0] >= from_x else -KNOCKBACK
+        self.vy = 320
+        self.ground = self.ladder = None
+        if self.hp == 0:
+            self.dead = True
+        return True
+
     # ---------------------------------------------------------------- 물리
     def update(self, dt, wm):
+        self.invincible = max(0.0, self.invincible - dt)
+        self.hurt_t = max(0.0, self.hurt_t - dt)
+        self.kb -= self.kb * min(1.0, 8 * dt)
+        if self.dead:
+            self.left = self.right = self.up = self.down = False
         self.switch_cd = max(0.0, self.switch_cd - dt)
         self.eat_cd = max(0.0, self.eat_cd - dt)
         self.fail_t = max(0.0, self.fail_t - dt)
@@ -271,7 +296,7 @@ class Pointer:
             self.facing = move
         if self.climb(dt, wm, move):
             return
-        self.vx = move * RUN_SPEED
+        self.vx = move * RUN_SPEED + self.kb
         prev_y = self.y
         self.x += self.vx * dt
         self.vy -= GRAVITY * dt
@@ -381,6 +406,8 @@ class Pointer:
         return '#_#' if self.mode == 'on' else '@_@'
 
     def draw(self):
+        if self.invincible > 0 and not self.dead and int(self.invincible * 12) % 2:
+            return                      # 무적 중 깜빡임
         if self.mode == 'on':
             gfx.push_clip(*self.win.client_rect())
         shake = math.sin(self.fail_t * 80) * 4 if self.fail_t > 0 else 0
