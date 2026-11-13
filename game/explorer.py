@@ -6,14 +6,15 @@ from apps import App
 from context_menu import Item, SEP
 from config import *
 
-G_BACK, G_FWD, G_UP, G_REFRESH, G_SEARCH = '', '', '', '', ''
-G_CHEVRON_R, G_CHEVRON_D, G_STAR, G_CLOUD, G_NETWORK = '', '', '', '', ''
+G_BACK, G_FWD, G_UP, G_REFRESH, G_SEARCH = '\uE72B', '\uE72A', '\uE74A', '\uE72C', '\uE721'
+G_CHEVRON_R, G_CHEVRON_D, G_STAR, G_CLOUD, G_NETWORK = '\uE76C', '\uE70D', '\uE735', '\uE753', '\uE968'
 LINE = (229, 229, 229)
 HOVER_FILL, HOVER_BORDER = (229, 243, 255), (229, 243, 255)
 SEL_FILL, SEL_BORDER = (204, 232, 255), (153, 209, 255)
 SEL_INACTIVE = (217, 217, 217)
 CELL_W, CELL_H = 96, 100
 STATUS_H, ADDR_H, RIBBON_H = 22, 34, 24
+SCROLL_W = 17                 # 오른쪽 스크롤바: 포인터에게는 사다리
 
 
 def noop():
@@ -39,6 +40,8 @@ class Explorer(App):
         self.navs = []           # (노드, b, t)
         self.buttons = {}        # 'back' / 'fwd' / 'up' → 사각형
         self.content = (0, 0, 0, 0)
+        self.scrollbar = (0, 0, 0, 0)
+        self.total_h = 0          # 내용 전체 높이 (스크롤바 손잡이 크기)
         self.active = False
 
     @property
@@ -198,8 +201,8 @@ class Explorer(App):
                 gfx.fill(x, y, tw, RIBBON_H, (25, 121, 202))
             gfx.text(tab, x + tw / 2, y + RIBBON_H / 2, 12, WHITE if i == 0 else TEXT, align='center')
             x += tw
-        gfx.symbol('', l + w - 40, y + 12, 10, TEXT_GRAY)
-        gfx.symbol('', l + w - 16, y + 12, 12, ACCENT)
+        gfx.symbol('\uE70E', l + w - 40, y + 12, 10, TEXT_GRAY)
+        gfx.symbol('\uE897', l + w - 16, y + 12, 12, ACCENT)
         gfx.line(l, y, l + w, y, LINE)
         # 주소 표시줄
         y -= ADDR_H
@@ -232,13 +235,15 @@ class Explorer(App):
         nav_w = min(200, w // 4)
         self.draw_nav(l, body_b, nav_w, body_t)
         gfx.line(l + nav_w, body_b, l + nav_w, body_t, LINE)
-        self.content = (l + nav_w + 1, body_b, w - nav_w - 1, body_t - body_b)
+        self.content = (l + nav_w + 1, body_b, w - nav_w - 1 - SCROLL_W, body_t - body_b)
+        self.scrollbar = (l + w - SCROLL_W, body_b, SCROLL_W, body_t - body_b)
         gfx.push_clip(*self.content)
         if self.node.kind == fs.THIS_PC:
             self.layout_this_pc(*self.content)
         else:
             self.layout_grid(*self.content)
         gfx.pop_clip()
+        self.draw_scrollbar()
         # 상태 표시줄
         n = len(self.node.children)
         status = '%d개 항목' % n
@@ -277,12 +282,14 @@ class Explorer(App):
     def layout_grid(self, l, b, w, h):
         self.items = []
         children = self.node.children
+        self.total_h = h
         if not children:
             gfx.text('이 폴더는 비어 있습니다.', l + w / 2, b + h - 22, 12, (109, 109, 109), align='center')
             return
         cols = max(1, (w - 16) // CELL_W)
         rows = (len(children) + cols - 1) // cols
-        self.scroll = min(self.scroll, max(0, rows * CELL_H + 20 - h))
+        self.total_h = max(h, rows * CELL_H + 20)
+        self.scroll = min(self.scroll, self.total_h - h)
         for i, node in enumerate(children):
             cx = l + 10 + (i % cols) * CELL_W
             ct = b + h - 6 - (i // cols) * CELL_H + self.scroll
@@ -299,11 +306,19 @@ class Explorer(App):
                 gfx.shortcut_arrow(ix, ct - 52)
             for j, ln in enumerate(lines):
                 gfx.text(ln, cx + CELL_W / 2, ct - 66 - j * 16, 12, align='center')
-        if rows * CELL_H + 20 > h:
-            gfx.fill(l + w - 17, b, 17, h, (240, 240, 240))
-            bar_h = max(30, h * h / (rows * CELL_H + 20))
-            k = self.scroll / max(1, rows * CELL_H + 20 - h)
-            gfx.fill(l + w - 13, b + h - bar_h - (h - bar_h) * k, 9, bar_h, (194, 194, 194))
+
+    def draw_scrollbar(self):
+        l, b, w, h = self.scrollbar
+        gfx.fill(l, b, w, h, (240, 240, 240))
+        gfx.symbol('\uE70E', l + w / 2, b + h - 8, 7, (96, 96, 96))
+        gfx.symbol('\uE70D', l + w / 2, b + 8, 7, (96, 96, 96))
+        track_b, track_h = b + 17, h - 34
+        bar_h = max(30, track_h * h / max(h, self.total_h))
+        k = self.scroll / max(1, self.total_h - h)
+        gfx.fill(l + 4, track_b + track_h - bar_h - (track_h - bar_h) * k, w - 8, bar_h, (194, 194, 194))
+
+    def ladders(self):
+        return [self.scrollbar]
 
     def group_header(self, name, l, top, w):
         gfx.symbol(G_CHEVRON_D, l + 14, top - 12, 8, (90, 90, 90))
@@ -313,6 +328,7 @@ class Explorer(App):
 
     def layout_this_pc(self, l, b, w, h):
         self.items = []
+        self.total_h = h
         folders = [n for n in self.node.children if n.kind == fs.FOLDER]
         drives = [n for n in self.node.children if n.kind == fs.DRIVE]
         y = self.group_header('폴더 (%d)' % len(folders), l, b + h - 8, w)

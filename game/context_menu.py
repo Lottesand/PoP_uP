@@ -99,6 +99,6 @@ class ContextMenu:
             c = TEXT if item.enabled else DISABLED
             gfx.text(item.label, l + 34, rb + rh / 2, 12, c, FONT_BOLD if item.bold else FONT)
             if item.sub:
-                gfx.symbol('', l + self.w - 14, rb + rh / 2, 8, c)
+                gfx.symbol('\uE76C', l + self.w - 14, rb + rh / 2, 8, c)
         if self.sub:
             self.sub.draw()

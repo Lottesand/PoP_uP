@@ -37,6 +37,10 @@ class App:
         """창 안(Shift ON)에서 밟을 수 있는 발판 (x0, x1, y). 화면 좌표"""
         return []
 
+    def ladders(self):
+        """W/S로 오르내리는 스크롤바 사각형들 (l, b, w, h). 화면 좌표"""
+        return []
+
 
 # ==================================================================== 메시지 상자
 class MessageBox(App):
@@ -116,7 +120,12 @@ class Notepad(App):
         for part in ('UTF-8', 'Windows (CRLF)', '100%', 'Ln 1, Col 1'):
             x -= gfx.text(part, x, b + 11, 12, align='right') + 34
             gfx.line(x + 18, b + 2, x + 18, b + 20, (210, 210, 210))
-        gfx.fill(l + w - 17, b + 22, 17, h - 42, (240, 240, 240))
+        self.scrollbar = (l + w - 17, b + 22, 17, h - 42)
+        gfx.fill(*self.scrollbar, (240, 240, 240))
+        gfx.fill(l + w - 13, b + h - 60, 9, 36, (194, 194, 194))
+
+    def ladders(self):
+        return [self.scrollbar] if hasattr(self, 'scrollbar') else []
 
 
 # ==================================================================== 웹 브라우저 (인터넷 끊김)
