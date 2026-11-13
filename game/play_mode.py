@@ -18,6 +18,8 @@ start = None
 wm = None
 player = None
 thrown = []
+checkpoint = (160, TASKBAR_H)      # HP 0 → 블루스크린 → 재부팅 뒤 여기서 다시 시작
+dead_t = 0.0
 mouse = (0, 0)
 cursor_hidden = False
 PLAYER_KEYS = {SDLK_a: 'left', SDLK_d: 'right', SDLK_w: 'up', SDLK_s: 'down', SDLK_SPACE: 'jump'}
@@ -35,7 +37,7 @@ def init():
     desktop = Desktop()
     taskbar = Taskbar()
     start = StartMenu()
-    player = Pointer()
+    player = Pointer(*checkpoint)
     thrown = []
 
 
@@ -48,7 +50,15 @@ def pause():
 
 
 def resume():
-    pass
+    if player.dead:
+        respawn()
+
+
+def respawn():
+    global player, dead_t
+    player = Pointer(*checkpoint)
+    thrown.clear()
+    dead_t = 0.0
 
 
 def taskbar_click(name):
@@ -220,10 +230,16 @@ def handle_events():
 
 
 def update():
-    global cursor_hidden
+    global cursor_hidden, dead_t
     dt = min(game_framework.frame_time, 1 / 30)
     wm.update(dt)
     player.update(dt, wm)
+    if player.dead:
+        dead_t += dt
+        if dead_t >= 0.6:               # x_x 표정을 잠깐 보여 준 뒤 블루스크린
+            dead_t = -99
+            import bsod_mode
+            game_framework.push_mode(bsod_mode)
     for t in thrown:
         t.update(dt)
     thrown[:] = [t for t in thrown if not t.dead]
