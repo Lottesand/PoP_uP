@@ -11,6 +11,7 @@ from config import *
 
 PW, PH = 48, 64
 RUN_SPEED = 360
+CLIMB_SPEED = 240
 GRAVITY = 2700
 JUMP_SPEED = 900                # 최대 약 150px
 JUMP_CUT = 0.45                 # 점프 키를 일찍 떼면 상승 속도를 이만큼 남긴다
@@ -23,7 +24,7 @@ EAT_HEAL, EAT_COOLDOWN = 12, 8.0
 BUTTON_RESPAWN = 10.0
 MAX_HP = 100
 
-GLYPH = {'min': '', 'max': '', 'close': ''}
+GLYPH = {'min': '\uE921', 'max': '\uE922', 'close': '\uE8BB'}
 
 
 # ==================================================================== 발판 계산
@@ -114,6 +115,8 @@ class Pointer:
         self.ground = None              # 밟고 있는 발판의 주인 ('taskbar', 창, 또는 None=공중)
         self.anchor = None              # (창, 지난 left, 지난 top): 창이 움직이면 같이 움직인다
         self.left = self.right = False
+        self.up = self.down = False
+        self.ladder = None              # (창, 사다리 번호): 스크롤바에 매달려 있는 중
         self.jump_held = False
         self.facing = 1
         self.hp = MAX_HP
@@ -130,11 +133,16 @@ class Pointer:
             self.left = down
         elif name == 'right':
             self.right = down
+        elif name == 'up':
+            self.up = down
+        elif name == 'down':
+            self.down = down
         elif name == 'jump':
             self.jump_held = down
-            if down and self.ground is not None:
+            if down and (self.ground is not None or self.ladder):
                 self.vy = JUMP_SPEED
                 self.ground = None
+                self.ladder = None
             elif not down and self.vy > 0:
                 self.vy *= JUMP_CUT
 
@@ -261,6 +269,8 @@ class Pointer:
         move = (1 if self.right else 0) - (1 if self.left else 0)
         if move:
             self.facing = move
+        if self.climb(dt, wm, move):
+            return
         self.vx = move * RUN_SPEED
         prev_y = self.y
         self.x += self.vx * dt
@@ -271,6 +281,52 @@ class Pointer:
             self.collide_inside(prev_y)
         else:
             self.collide_os(prev_y, wm)
+
+    # ---------------------------------------------------------------- 스크롤바 사다리
+    def ladder_rect(self, wm):
+        win, i = self.ladder
+        if win not in wm.visible():
+            return None
+        lads = win.app.ladders()
+        return lads[i] if i < len(lads) else None
+
+    def find_ladder(self, wm):
+        """포인터 가운데가 닿아 있는 스크롤바. OFF에서는 앞 창에 덮이지 않은 것만"""
+        cx, cy = self.center()
+        wins = [self.win] if self.mode == 'on' else reversed(wm.visible())
+        for win in wins:
+            for i, (l, b, w, h) in enumerate(win.app.ladders()):
+                if l - 14 <= cx <= l + w + 14 and b - PH / 2 <= cy <= b + h + PH / 2:
+                    if self.mode == 'on' or wm.hit(l + w / 2, min(cy, b + h - 1))[0] is win:
+                        return win, i
+        return None
+
+    def climb(self, dt, wm, move):
+        """사다리에 매달려 있으면 오르내리고 True. W/S를 누르면 붙잡는다"""
+        if self.ladder and (move or self.ladder_rect(wm) is None):
+            self.ladder = None
+        if self.ladder is None and (self.up or (self.down and self.ground is None)):
+            self.ladder = self.find_ladder(wm)
+            if self.ladder and self.mode == 'off':
+                self.set_anchor(self.ladder[0])
+                self.layer = self.ladder[0]
+        if not self.ladder:
+            return False
+        l, b, w, h = self.ladder_rect(wm)
+        self.x = l + w / 2 - PW / 2
+        self.vx = 0
+        self.vy = ((1 if self.up else 0) - (1 if self.down else 0)) * CLIMB_SPEED
+        self.y = min(self.y + self.vy * dt, b + h - 10)
+        self.ground = None
+        if self.y + PH / 2 < b and self.vy <= 0:
+            # 아래 끝을 지나면 놓고 떨어진다 (바로 밑 바닥에 선다)
+            self.ladder = None
+            self.vy = 0
+            if self.mode == 'on':
+                self.collide_inside(self.y + 1)
+            else:
+                self.collide_os(self.y + 1, wm)
+        return True
 
     def land(self, y, owner):
         self.y = y

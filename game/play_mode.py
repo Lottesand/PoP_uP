@@ -20,7 +20,7 @@ player = None
 thrown = []
 mouse = (0, 0)
 cursor_hidden = False
-PLAYER_KEYS = {SDLK_a: 'left', SDLK_d: 'right', SDLK_SPACE: 'jump'}
+PLAYER_KEYS = {SDLK_a: 'left', SDLK_d: 'right', SDLK_w: 'up', SDLK_s: 'down', SDLK_SPACE: 'jump'}
 
 
 def open_app(key):
