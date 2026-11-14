@@ -107,3 +107,58 @@ class Monster:
 
     def draw_body(self, x, y, w, h):
         gfx.fill(x, y, w, h, (200, 60, 60))
+
+
+# ==================================================================== 버그 벌레: 근거리 기습
+class BugWorm(Monster):
+    w, h = 44, 22
+    max_hp = 20
+    contact_damage = 10
+    PATROL, DASH, REST = 70, 330, 0
+
+    def __init__(self, folder, rx, ry=0.0):
+        super().__init__(folder, rx, ry)
+        self.state, self.timer = 'patrol', random.uniform(0.5, 2.0)
+        self.vx = -self.PATROL
+
+    def think(self, dt, game):
+        self.timer -= dt
+        if self.state == 'patrol':
+            if self.vx == 0:
+                self.vx = self.facing * self.PATROL
+            if self.on_ground and self.timer <= 0 and self.sees(game.player, 340):
+                px, py = game.player.center()
+                self.facing = 1 if px > self.center()[0] else -1
+                self.state, self.timer = 'dash', 0.8
+                self.vx = self.facing * self.DASH
+                self.vy = 260
+            elif self.timer <= 0:
+                self.timer = random.uniform(1.0, 2.5)
+                self.facing = -self.facing
+                self.vx = self.facing * self.PATROL
+        elif self.state == 'dash':
+            if self.timer <= 0:
+                self.state, self.timer = 'rest', 0.6
+                self.vx = 0
+        elif self.state == 'rest' and self.timer <= 0:
+            self.state, self.timer = 'patrol', 0.4
+            self.vx = self.facing * self.PATROL
+
+    def bounce(self):
+        # 포인터에 부딪히면 튕겨 나간다
+        self.vx = -self.facing * 200
+        self.vy = 300
+        self.state, self.timer = 'rest', 0.7
+
+    def draw_body(self, x, y, w, h):
+        body = WHITE if self.flash > 0 else (60, 160, 40)
+        for i in range(3):
+            lx = x + 10 + i * 12
+            leg = 3 if int((self.rx + i * 7) / 6) % 2 else -3
+            gfx.line(lx, y + 4, lx + leg, y - 1, (30, 70, 20))
+        gfx.fill(x + 4, y + 3, w - 8, h - 5, body)
+        gfx.frame(x + 4, y + 3, w - 8, h - 5, (30, 90, 20))
+        hx = x + w - 10 if self.facing > 0 else x
+        gfx.fill(hx, y + 6, 10, h - 8, (40, 110, 30) if self.flash <= 0 else WHITE)
+        gfx.fill(hx + (6 if self.facing > 0 else 2), y + h - 8, 2, 2, BLACK)
+        gfx.line(hx + 5, y + h - 2, hx + 5 + self.facing * 6, y + h + 4, (30, 70, 20))
