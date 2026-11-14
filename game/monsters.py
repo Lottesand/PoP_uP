@@ -236,3 +236,80 @@ class Caret(Monster):
         gfx.fill(x + 4, y, 4, h, c)
         gfx.fill(x, y + h - 3, w, 3, c)
         gfx.fill(x, y, w, 3, c)
+
+
+# ==================================================================== 윈도우 로고: 다가와서 자폭
+class Bomber(Monster):
+    w, h = 40, 40
+    max_hp = 15
+    contact_damage = 0
+    SENSE, CHASE, WANDER = 250, 200, 60
+    FUSE, RADIUS, BLAST = 3.0, 160, 30
+
+    def __init__(self, folder, rx, ry=0.0):
+        super().__init__(folder, rx, ry)
+        self.state = 'wander'
+        self.fuse = 0.0
+        self.vx = self.WANDER
+
+    def hit(self, damage, kind, from_x):
+        super().hit(damage, kind, from_x)
+        if kind == 'min':
+            self.state, self.fuse = 'chase', 0.0       # 최소화 버튼에 맞으면 카운트다운 처음부터
+
+    def think(self, dt, game):
+        p = game.player
+        if self.state == 'wander':
+            if self.sees(p, self.SENSE, 200):
+                self.state = 'chase'
+            elif self.vx == 0:
+                self.vx = self.WANDER
+        elif self.state == 'chase':
+            px, py = p.center()
+            cx, cy = self.center()
+            self.facing = 1 if px > cx else -1
+            self.vx = self.facing * self.CHASE
+            if not self.sees(p, self.SENSE + 100, 260):
+                self.state = 'wander'
+            elif abs(px - cx) < 70:
+                self.state, self.fuse = 'count', self.FUSE
+                self.vx = 0
+        elif self.state == 'count':
+            self.vx = 0
+            self.fuse -= dt
+            if self.fuse <= 0:
+                self.dead = True
+                game.explode(self.win, *self.center(), self.RADIUS, self.BLAST)
+
+    def draw_body(self, x, y, w, h):
+        hot = self.state == 'count' and int(self.fuse * 8) % 2
+        c = WHITE if self.flash > 0 else ((255, 90, 60) if hot else ACCENT)
+        g = 3
+        half = (w - g) / 2
+        for dx, dy in ((0, 0), (half + g, 0), (0, half + g), (half + g, half + g)):
+            gfx.fill(x + dx, y + dy, half, half, c)
+        if self.state == 'count':
+            gfx.text(str(math.ceil(self.fuse)), x + w / 2, y + h + 16, 18, CLOSE_RED, FONT_BOLD, align='center')
+
+
+class Blast:
+    """폭발 연출: 퍼지는 원"""
+
+    def __init__(self, win, x, y, r):
+        self.win, self.x, self.y, self.r = win, x, y, r
+        self.t = 0.0
+        self.dead = False
+
+    def update(self, dt, game):
+        self.t += dt
+        self.dead = self.t > 0.35
+
+    def draw(self):
+        gfx.push_clip(*self.win.client_rect())
+        k = self.t / 0.35
+        gfx.circle(self.x, self.y, int(self.r * (0.4 + 0.6 * k)), (255, 160, 40, int(160 * (1 - k))))
+        gfx.circle(self.x, self.y, int(self.r * 0.5 * (0.4 + 0.6 * k)), (255, 240, 180, int(200 * (1 - k))))
+        gfx.pop_clip()
+
+
+KINDS = {'bug': BugWorm, 'caret': Caret, 'bomber': Bomber}
