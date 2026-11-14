@@ -162,3 +162,77 @@ class BugWorm(Monster):
         gfx.fill(hx, y + 6, 10, h - 8, (40, 110, 30) if self.flash <= 0 else WHITE)
         gfx.fill(hx + (6 if self.facing > 0 else 2), y + h - 8, 2, 2, BLACK)
         gfx.line(hx + 5, y + h - 2, hx + 5 + self.facing * 6, y + h + 4, (30, 70, 20))
+
+
+# ==================================================================== 캐럿 ( | ): 숫자탄 사격
+class Digit:
+    """캐럿이 쏘는 숫자탄. 숫자가 곧 데미지"""
+    SPEED = 420
+
+    def __init__(self, win, x, y, tx, ty):
+        self.win, self.x, self.y = win, x, y
+        d = math.hypot(tx - x, ty - y) or 1
+        self.vx, self.vy = (tx - x) / d * self.SPEED, (ty - y) / d * self.SPEED
+        self.value = random.randint(0, 9)
+        self.dead = False
+        self.age = 0.0
+
+    def update(self, dt, game):
+        self.age += dt
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        if self.win not in game.wm.visible():
+            self.dead = True
+            return
+        l, b, w, h = self.win.client_rect()
+        if not (l <= self.x <= l + w and b <= self.y <= b + h) or self.age > 4:
+            self.dead = True
+
+    def rect(self):
+        return self.x - 7, self.y - 9, 14, 18
+
+    def draw(self):
+        gfx.push_clip(*self.win.client_rect())
+        gfx.fill(self.x - 9, self.y - 11, 18, 22, (255, 255, 255, 220))
+        gfx.frame(self.x - 9, self.y - 11, 18, 22, CLOSE_RED)
+        gfx.text(str(self.value), self.x, self.y, 16, CLOSE_RED, FONT_BOLD, align='center')
+        gfx.pop_clip()
+
+
+class Caret(Monster):
+    w, h = 12, 46
+    max_hp = 30
+    contact_damage = 5
+    PERIOD, AIM = 1.5, 0.5
+
+    def __init__(self, folder, rx, ry=0.0):
+        super().__init__(folder, rx, ry)
+        self.timer = random.uniform(0.6, self.PERIOD)
+        self.aiming = False
+        self.home = rx
+
+    def think(self, dt, game):
+        self.timer -= dt
+        # 발판 위에서 좌우로 조금씩
+        if abs(self.rx - self.home) > 30:
+            self.vx = -math.copysign(30, self.rx - self.home)
+        elif self.vx == 0:
+            self.vx = 30
+        if not self.aiming and self.timer <= 0:
+            if self.sees(game.player, 700, 500):
+                self.aiming, self.timer = True, self.AIM
+                self.vx = 0
+            else:
+                self.timer = 0.5
+        elif self.aiming and self.timer <= 0:
+            self.aiming, self.timer = False, self.PERIOD
+            cx, cy = self.center()
+            px, py = game.player.center()
+            game.bullets.append(Digit(self.win, cx, cy + 10, px, py))
+
+    def draw_body(self, x, y, w, h):
+        blink = self.aiming and int(self.timer * 16) % 2
+        c = WHITE if self.flash > 0 else (CLOSE_RED if blink else (20, 20, 20))
+        gfx.fill(x + 4, y, 4, h, c)
+        gfx.fill(x, y + h - 3, w, 3, c)
+        gfx.fill(x, y, w, 3, c)
