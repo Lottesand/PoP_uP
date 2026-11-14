@@ -7,7 +7,7 @@ import gfx
 import fs
 import shell
 import level
-from monsters import Blast, BugWorm
+from monsters import Blast, BugWorm, Popup
 from config import *
 from desktop import Desktop
 from taskbar import Taskbar, group_windows
@@ -275,14 +275,23 @@ def explode(win, x, y, radius, damage):
     effects.append(Blast(win, x, y, radius))
     px, py = player.center()
     if player.mode == 'on' and player.win is win and (px - x) ** 2 + (py - y) ** 2 <= radius ** 2:
-        player.hurt(damage, x)
+        hurt_player(damage, x)
     for m in monsters:
         if m.win is win and not m.dead:
             mx, my = m.center()
             if (mx - x) ** 2 + (my - y) ** 2 <= radius ** 2:
                 m.hit(damage, 'blast', x)
+                effects.append(Popup(win, mx, my + 20, str(damage)))
     if hasattr(win.app, 'split_at'):
         win.app.split_at(x, y, radius)
+
+
+def hurt_player(damage, from_x):
+    if player.hurt(damage, from_x):
+        px, py = player.center()
+        effects.append(Popup(player.win if player.mode == 'on' else None, px, py + 44, '-%d' % damage))
+        return True
+    return False
 
 
 def fight():
@@ -291,17 +300,19 @@ def fight():
             if not t.dead and not m.dead and m.win is t.win and m not in t.hits and overlap(t.rect(), m.rect()):
                 m.hit(t.damage, t.name, t.x)
                 t.struck(m)
+                mx, my = m.center()
+                effects.append(Popup(m.win, mx, my + 24, str(t.damage), (255, 200, 0)))
     if player.mode != 'on' or player.dead:
         return
     body = (player.x, player.y, 48, 64)
     for m in monsters:
         if m.win is player.win and not m.dead and m.contact_damage and overlap(body, m.rect()):
-            if player.hurt(m.contact_damage, m.center()[0]) and isinstance(m, BugWorm):
+            if hurt_player(m.contact_damage, m.center()[0]) and isinstance(m, BugWorm):
                 m.bounce()
     for d in bullets:
         if d.win is player.win and overlap(body, d.rect()):
             d.dead = True
-            player.hurt(d.value, d.x)
+            hurt_player(d.value, d.x)
 
 
 def update_world(dt):
