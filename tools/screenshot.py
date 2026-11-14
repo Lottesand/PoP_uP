@@ -71,6 +71,28 @@ def main(out):
         play_mode.update()
     play_mode.mouse_move(l + 200, b + 150)
     shot(os.path.join(out, '5_pointer.png'))
+
+    # 전투: 문서 폴더 안 버그 벌레에게 닫기 버튼 던지기
+    play_mode.wm.close(win)
+    p.force_out()
+    play_mode.open_app('documents')
+    win = play_mode.wm.active
+    win.x, win.y, win.w, win.h = 300, 120, 1000, 640
+    for _ in range(5):
+        play_mode.update()
+        play_mode.render()
+    l, b, w, h = win.rect()
+    p.x, p.y, p.switch_cd = l + 120, b + 40, 0
+    play_mode.switch_mode()
+    p.held = 'close'
+    for _ in range(60):
+        play_mode.update()
+    bug = next(m for m in play_mode.monsters if m.win is win)
+    play_mode.right_down(*bug.center())
+    for _ in range(12):
+        play_mode.update()
+    play_mode.mouse_move(*bug.center())
+    shot(os.path.join(out, '6_combat.png'))
     close_canvas()
 
 
