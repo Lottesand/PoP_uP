@@ -1,10 +1,13 @@
 # 바탕화면 플레이 모드: 바탕화면 · 창 · 작업 표시줄 · 시작 메뉴 · 오른쪽 클릭 메뉴에 마우스 입력을 나눠 준다
 from pico2d import *
 
+import sys
 import game_framework
 import gfx
 import fs
 import shell
+import level
+from monsters import Blast, BugWorm
 from config import *
 from desktop import Desktop
 from taskbar import Taskbar, group_windows
@@ -18,6 +21,9 @@ start = None
 wm = None
 player = None
 thrown = []
+monsters = []
+bullets = []
+effects = []
 checkpoint = (160, TASKBAR_H)      # HP 0 → 블루스크린 → 재부팅 뒤 여기서 다시 시작
 dead_t = 0.0
 mouse = (0, 0)
@@ -39,6 +45,9 @@ def init():
     start = StartMenu()
     player = Pointer(*checkpoint)
     thrown = []
+    monsters[:] = level.spawn()
+    bullets.clear()
+    effects.clear()
 
 
 def finish():
@@ -242,6 +251,7 @@ def update():
             game_framework.push_mode(bsod_mode)
     for t in thrown:
         t.update(dt)
+    update_world(dt)
     thrown[:] = [t for t in thrown if not t.dead]
     # 침투 모드에서만 실제 마우스 커서를 숨긴다 (창이 닫혀 밖으로 밀려나도 다시 보이게)
     if (player.mode == 'on') != cursor_hidden:
@@ -252,8 +262,70 @@ def update():
             show_cursor()
 
 
+# ---------------------------------------------------------------- 전투
+def platforms(win):
+    return win.app.platforms()
+
+
+def overlap(a, b):
+    return a[0] < b[0] + b[2] and b[0] < a[0] + a[2] and a[1] < b[1] + b[3] and b[1] < a[1] + a[3]
+
+
+def explode(win, x, y, radius, damage):
+    effects.append(Blast(win, x, y, radius))
+    px, py = player.center()
+    if player.mode == 'on' and player.win is win and (px - x) ** 2 + (py - y) ** 2 <= radius ** 2:
+        player.hurt(damage, x)
+    for m in monsters:
+        if m.win is win and not m.dead:
+            mx, my = m.center()
+            if (mx - x) ** 2 + (my - y) ** 2 <= radius ** 2:
+                m.hit(damage, 'blast', x)
+    if hasattr(win.app, 'split_at'):
+        win.app.split_at(x, y, radius)
+
+
+def fight():
+    for t in thrown:
+        for m in monsters:
+            if not t.dead and not m.dead and m.win is t.win and m not in t.hits and overlap(t.rect(), m.rect()):
+                m.hit(t.damage, t.name, t.x)
+                t.struck(m)
+    if player.mode != 'on' or player.dead:
+        return
+    body = (player.x, player.y, 48, 64)
+    for m in monsters:
+        if m.win is player.win and not m.dead and m.contact_damage and overlap(body, m.rect()):
+            if player.hurt(m.contact_damage, m.center()[0]) and isinstance(m, BugWorm):
+                m.bounce()
+    for d in bullets:
+        if d.win is player.win and overlap(body, d.rect()):
+            d.dead = True
+            player.hurt(d.value, d.x)
+
+
+def update_world(dt):
+    game = sys.modules[__name__]
+    for m in monsters:
+        m.win = level.window_for(m.folder, wm)
+        if m.win is not None:
+            m.update(dt, game)
+    for d in bullets + effects:
+        d.update(dt, game)
+    fight()
+    monsters[:] = [m for m in monsters if not m.dead]
+    bullets[:] = [d for d in bullets if not d.dead]
+    effects[:] = [e for e in effects if not e.dead]
+
+
 def draw_layer(win):
-    """win 창 바로 위 층(None이면 바탕화면 층)에 있는 포인터와 던진 버튼"""
+    """win 창 바로 위 층(None이면 바탕화면 층)에 있는 몬스터·탄·포인터·던진 버튼"""
+    for m in monsters:
+        if m.win is win and win is not None:
+            m.draw()
+    for d in bullets + effects:
+        if d.win is win:
+            d.draw()
     for t in thrown:
         if t.win is win:
             t.draw()

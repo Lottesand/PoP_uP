@@ -54,6 +54,7 @@ class Explorer(App):
         self.navs = []           # (노드, b, t)
         self.buttons = {}        # 'back' / 'fwd' / 'up' → 사각형
         self.content = (0, 0, 0, 0)
+        self.floor = None
         self.scrollbar = (0, 0, 0, 0)
         self.total_h = 0          # 내용 전체 높이 (스크롤바 손잡이 크기)
         self.active = False
@@ -147,7 +148,7 @@ class Explorer(App):
     def platforms(self):
         # 항목 아이콘 칸의 윗면을 발판으로 쓴다 (내용 영역 안에 보이는 것만, 부서진 구간은 빼고)
         cl, cb, cw, ch = self.content
-        out = []
+        out = [self.floor] if self.floor else []
         for node, (l, b, w, h) in self.items:
             top = b + h
             if not cb < top < cb + ch:
@@ -264,6 +265,7 @@ class Explorer(App):
         gfx.symbol(G_SEARCH, sx + 195, cy, 10, (90, 90, 90))
 
         body_b, body_t = b + STATUS_H, y - 4
+        self.floor = (l, l + w, body_b)          # 상태 표시줄 윗면: 창 안의 바닥
         nav_w = min(200, w // 4)
         self.draw_nav(l, body_b, nav_w, body_t)
         gfx.line(l + nav_w, body_b, l + nav_w, body_t, LINE)
