@@ -21,6 +21,20 @@ def noop():
     pass
 
 
+def cut_span(spans, c0, c1):
+    """구간 목록에서 (c0, c1)을 잘라 낸다"""
+    out = []
+    for a, z in spans:
+        if z <= c0 or a >= c1:
+            out.append((a, z))
+            continue
+        if a < c0:
+            out.append((a, c0))
+        if z > c1:
+            out.append((c1, z))
+    return out
+
+
 class Explorer(App):
     group = 'explorer'
     size = (900, 560)
@@ -131,14 +145,32 @@ class Explorer(App):
             self.open(node)
 
     def platforms(self):
-        # 항목 아이콘 칸의 윗면을 발판으로 쓴다 (내용 영역 안에 보이는 것만)
+        # 항목 아이콘 칸의 윗면을 발판으로 쓴다 (내용 영역 안에 보이는 것만, 부서진 구간은 빼고)
         cl, cb, cw, ch = self.content
         out = []
         for node, (l, b, w, h) in self.items:
             top = b + h
-            if cb < top < cb + ch:
-                out.append((max(l, cl), min(l + w, cl + cw), top))
+            if not cb < top < cb + ch:
+                continue
+            spans = [(0.0, 1.0)]
+            for c0, c1 in node.cuts:
+                spans = cut_span(spans, c0, c1)
+            for a, z in spans:
+                x0, x1 = max(l + w * a, cl), min(l + w * z, cl + cw)
+                if x1 - x0 > 6:
+                    out.append((x0, x1, top))
         return out
+
+    def split_at(self, x, y, r):
+        """폭발: 반경 r 안의 아이콘 칸 윗면을 부순다 (발판이 갈라진다)"""
+        for node, (l, b, w, h) in self.items:
+            top = b + h
+            if abs(top - y) > r:
+                continue
+            reach = (r * r - (top - y) ** 2) ** 0.5
+            c0, c1 = (x - reach - l) / w, (x + reach - l) / w
+            if c1 > 0 and c0 < 1:
+                node.cuts.append((max(0.0, c0), min(1.0, c1)))
 
     def wheel(self, dy):
         self.scroll = max(0, self.scroll - dy * 60)
@@ -298,6 +330,7 @@ class Explorer(App):
             rect = (cx + 2, ct - box_h, CELL_W - 4, box_h)
             self.items.append((node, rect))
             self.item_box(node, *rect)
+            self.draw_cuts(node, *rect)
             ix = cx + (CELL_W - 48) / 2
             gfx.icon(node.icon, 48, ix, ct - 52)
             if node.locked:
@@ -319,6 +352,14 @@ class Explorer(App):
 
     def ladders(self):
         return [self.scrollbar]
+
+    def draw_cuts(self, node, l, b, w, h):
+        # 부서진 칸 윗면: 금 간 자국
+        for c0, c1 in node.cuts:
+            x0, x1 = l + w * c0, l + w * c1
+            gfx.fill(x0, b + h - 3, x1 - x0, 3, (120, 120, 120))
+            for x in range(int(x0), int(x1) - 4, 8):
+                gfx.line(x, b + h, x + 4, b + h - 7, (90, 90, 90))
 
     def group_header(self, name, l, top, w):
         gfx.symbol(G_CHEVRON_D, l + 14, top - 12, 8, (90, 90, 90))

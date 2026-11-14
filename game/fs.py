@@ -20,6 +20,7 @@ class Node:
         self.locked = locked
         self.pos = None                 # 바탕화면 격자 칸 (열, 행)
         self.origin = None              # 휴지통에 들어오기 전 폴더
+        self.cuts = []                  # 폭발로 부서진 아이콘 칸 윗면 구간 (칸 너비 비율 0~1)
         for c in children:
             self.add(c)
 
