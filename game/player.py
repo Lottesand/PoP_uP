@@ -62,12 +62,37 @@ def os_platforms(wm):
 
 
 # ==================================================================== 던진 버튼
+# 버튼 무기 (데미지, 효과): 닫기 = 3마리까지 관통, 최소화 = 1초 기절, 최대화 = 바닥에 닿으면 2초 굴러가며 최대 5번
+DAMAGE = {'close': 25, 'min': 10, 'max': 8}
+PIERCE = 3
+ROLL_TIME, ROLL_SPEED, ROLL_HITS = 2.0, 520, 5
+
+
 class Thrown:
     def __init__(self, name, x, y, vx, vy, win):
         self.name, self.x, self.y, self.vx, self.vy = name, x, y, vx, vy
         self.win = win                  # 창 안에서 던졌으면 그 창 (그 창 층에, 그 창 안에서만 날아간다)
         self.age = 0.0
         self.dead = False
+        self.hits = []                  # 이미 맞힌 몬스터 (같은 몬스터는 한 번만)
+        self.rolling = 0.0
+
+    @property
+    def damage(self):
+        return DAMAGE[self.name]
+
+    def rect(self):
+        return self.x - 15, self.y - 11, 30, 22
+
+    def struck(self, monster):
+        """몬스터를 맞혔다. 무기마다 계속 날아갈지 정한다"""
+        self.hits.append(monster)
+        if self.name == 'min':
+            self.dead = True
+        elif self.name == 'close' and len(self.hits) >= PIERCE:
+            self.dead = True
+        elif self.name == 'max' and len(self.hits) >= ROLL_HITS:
+            self.dead = True
 
     def bounds(self):
         if self.win is not None:
@@ -76,12 +101,25 @@ class Thrown:
 
     def update(self, dt):
         self.age += dt
+        l, b, w, h = self.bounds()
+        if self.rolling > 0:
+            # 최대화 버튼: 바닥을 굴러간다
+            self.rolling -= dt
+            self.x += self.vx * dt
+            if self.rolling <= 0 or not l + 12 <= self.x <= l + w - 12:
+                self.dead = True
+            return
         self.vy -= THROW_GRAVITY * dt
         self.x += self.vx * dt
         self.y += self.vy * dt
-        l, b, w, h = self.bounds()
         if self.win is not None and self.win.state == 'min':
             self.dead = True
+        if self.name == 'max' and self.y <= b + 11 and l + 12 <= self.x <= l + w - 12:
+            self.y, self.vy = b + 11, 0.0
+            self.vx = math.copysign(ROLL_SPEED, self.vx or 1)
+            self.rolling = ROLL_TIME
+            self.hits = []
+            return
         if not (l + 12 <= self.x <= l + w - 12 and b + 8 <= self.y <= b + h - 8) or self.age > 3:
             self.dead = True
 
