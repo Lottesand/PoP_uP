@@ -67,6 +67,42 @@ def circle(x, y, r, c):
         SDL_RenderDrawLine(p2.renderer, int(x - dx), sy, int(x + dx), sy)
 
 
+def round_rect(l, b, w, h, r, c):
+    """모서리가 둥근 사각형 (r = 모서리 반지름, h/2면 알약 모양)"""
+    r = int(max(0, min(r, w / 2, h / 2)))
+    if r == 0:
+        fill(l, b, w, h, c)
+        return
+    _color(c)
+    for i in range(int(h)):
+        y = b + i
+        dy = 0
+        if i < r:
+            dy = r - i - 0.5
+        elif i >= h - r:
+            dy = i - (h - r) + 0.5
+        dx = r - (r * r - dy * dy) ** 0.5 if dy else 0
+        sy = int(config.H - 1 - y)
+        SDL_RenderDrawLine(p2.renderer, int(l + dx), sy, int(l + w - 1 - dx), sy)
+
+
+def round_frame(l, b, w, h, r, c, bg=config.WHITE, t=1):
+    """테두리만 있는 둥근 사각형: 바깥을 c로 칠하고 안쪽을 bg로 덮는다"""
+    round_rect(l, b, w, h, r, c)
+    round_rect(l + t, b + t, w - 2 * t, h - 2 * t, max(0, r - t), bg)
+
+
+def play_triangle(cx, cy, size, c):
+    """오른쪽을 가리키는 재생 삼각형"""
+    _color(c)
+    half = size / 2
+    for i in range(int(size * 0.87)):
+        x = cx - size * 0.35 + i
+        k = 1 - i / (size * 0.87)
+        SDL_RenderDrawLine(p2.renderer, int(x), int(config.H - 1 - (cy + half * k)),
+                           int(x), int(config.H - 1 - (cy - half * k)))
+
+
 def triangle(cx, cy, size, c):
     # 꼭짓점이 위인 정삼각형 (경고 아이콘)
     _color(c)

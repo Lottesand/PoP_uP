@@ -241,6 +241,14 @@ def key_down(key):
             wm.active.app.open(wm.active.app.selected)
 
 
+def ctrl_shortcut(event):
+    """Ctrl + 키를 맨 위 창의 앱에 먼저 준다 (Chrome의 Ctrl+T/W/N/L 등). 가져갔으면 True"""
+    if not event.mod & KMOD_CTRL or event.repeat or wm.active is None:
+        return False
+    hook = getattr(wm.active.app, 'shortcut', None)
+    return bool(hook and hook(event.key))
+
+
 def typing_key(event):
     """입력란에 글자를 넣는 중이면 키를 입력란으로 보낸다. 가져갔으면 True"""
     box = textbox.focus
@@ -266,6 +274,8 @@ def handle_events():
             if textbox.focus:
                 textbox.focus.compose(event.text)
         elif event.type == SDL_KEYDOWN:
+            if ctrl_shortcut(event):
+                continue
             if typing_key(event) or event.repeat:
                 continue
             key_down(event.key)
