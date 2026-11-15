@@ -44,6 +44,10 @@ def element_of(c):
 
 class Drawing:
     """잘라 낸 그림 한 장. cells[y][x] = 색 또는 None(투명), y는 위에서부터"""
+    kind = 'drawing'
+
+    def drop(self):
+        pass                            # 사진 창에 원본이 남아 있으니 그냥 손에서 놓는다
 
     def __init__(self, cells):
         self.cells = cells
@@ -200,6 +204,9 @@ class ThrownDrawing:
     def rect(self):
         s = max(30, min(self.drawing.length, 120) * 0.7)
         return self.x - s / 2, self.y - s / 2, s, s
+
+    def strike(self, monster, game):
+        return self.drawing.strike(monster, game, self.x, self.damage)
 
     def struck(self, monster):
         self.hits.append(monster)

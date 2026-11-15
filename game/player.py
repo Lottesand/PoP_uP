@@ -176,7 +176,11 @@ class Pointer:
         self.facing = 1
         self.hp = MAX_HP
         self.held = None                # 들고 있는 버튼 이름
-        self.weapon = None              # 들고 있는 그림 무기 (drawing.Drawing)
+        self.weapon = None              # 특수 무기 하나: 그림(drawing.Drawing) 또는 디버그 건(debuggun.DebugGun)
+        self.shot_cd = self.f5_cd = self.recoil = 0.0
+        self.dash_speed = DASH_SPEED
+        self.dash_power = 0             # F5 대쉬: 지나가며 닿은 적에게 주는 데미지
+        self.dash_hits = []
         self.swing_t = self.swing_len = self.swing_cd = 0.0
         self.swing_from = self.swing_to = 0.0
         self.swing_hits = []            # 이번 휘두르기에 이미 맞힌 몬스터
@@ -328,14 +332,55 @@ class Pointer:
         return hx + self.poke_dir[0] * reach, hy + self.poke_dir[1] * reach
 
     # ---------------------------------------------------------------- 그림 무기
-    def take_weapon(self, picture):
-        self.weapon = picture
+    def take_weapon(self, weapon):
+        """특수 무기는 하나만: 들고 있던 건 내려놓고 바꿔 든다"""
+        if self.weapon is not None and self.weapon is not weapon:
+            self.weapon.drop()
+        self.weapon = weapon
         self.swing_t = self.swing_cd = 0.0
+
+    def drop_weapon(self):
+        """E: 특수 무기 버리기"""
+        if self.weapon is None:
+            return False
+        self.weapon.drop()
+        self.weapon = None
+        self.swing_t = 0.0
+        return True
+
+    def has(self, kind):
+        return self.weapon is not None and self.weapon.kind == kind
+
+    def shoot(self, mx, my):
+        """디버그 건 좌클릭: 조준 쪽으로 중단점을 쏜다"""
+        from debuggun import Shot, SHOT_COOLDOWN
+        if self.mode != 'on' or not self.has('gun') or self.shot_cd > 0 or self.dead:
+            return None
+        hx, hy = self.hand()
+        if abs(mx - hx) > 1:
+            self.facing = 1 if mx > hx else -1
+            hx, hy = self.hand()
+        a = math.atan2(my - hy, mx - hx)
+        self.shot_cd, self.recoil = SHOT_COOLDOWN, 0.1
+        self.poke_dir = (math.cos(a), math.sin(a))
+        x, y = self.weapon.muzzle(hx, hy, a)
+        return Shot(x, y, a, self.win)
+
+    def f5(self, mx, my):
+        """디버그 건 우클릭: F5 Run 대쉬 (멀리, 닿은 적 관통 데미지)"""
+        from debuggun import F5_SPEED, F5_TIME, F5_COOLDOWN, F5_DAMAGE
+        if not self.has('gun') or self.f5_cd > 0:
+            return False
+        if not self.dash(mx, my, F5_SPEED, F5_TIME, ignore_cd=True):
+            return False
+        self.f5_cd = F5_COOLDOWN
+        self.dash_power = F5_DAMAGE
+        return True
 
     def swing(self, mx, my):
         """그림 무기로 휘두르기(칼) / 찌르기(창). 닿는 끝 위치를 돌려준다 (쿨타임 중이면 None)"""
         w = self.weapon
-        if self.mode != 'on' or self.swing_cd > 0 or self.dead or w is None:
+        if self.mode != 'on' or self.swing_cd > 0 or self.dead or not self.has('drawing'):
             return None
         hx, hy = self.hand()
         if abs(mx - hx) > 1:
@@ -375,7 +420,7 @@ class Pointer:
     def throw_weapon(self, mx, my):
         """우클릭: 그림 무기를 던진다 (다시 쓰려면 사진 창에서 또 집는다)"""
         from drawing import ThrownDrawing
-        if self.weapon is None or self.dead:
+        if not self.has('drawing') or self.dead:
             return None
         hx, hy = self.hand()
         dx, dy = mx - hx, my - hy
@@ -389,16 +434,18 @@ class Pointer:
         self.kb = -dx / d * 220
         return t
 
-    def dash(self, mx, my):
+    def dash(self, mx, my, speed=DASH_SPEED, time=DASH_TIME, ignore_cd=False):
         """빈손 우클릭: 조준선 쪽으로 가장 가까운 8방향 대쉬. 했으면 True"""
-        if self.mode != 'on' or self.dash_cd > 0 or self.dead or (self.ground is None and not self.air_dash):
+        if self.mode != 'on' or (self.dash_cd > 0 and not ignore_cd) or self.dead \
+                or (self.ground is None and not self.air_dash):
             return False
+        self.dash_speed, self.dash_power, self.dash_hits = speed, 0, []
         cx, cy = self.center()
         a = round(math.atan2(my - cy, mx - cx) / (math.pi / 4)) * (math.pi / 4)
         self.dash_dir = (round(math.cos(a), 6), round(math.sin(a), 6))
         if abs(self.dash_dir[0]) > 0.1:
             self.facing = 1 if self.dash_dir[0] > 0 else -1
-        self.dash_t, self.dash_cd = DASH_TIME, DASH_COOLDOWN
+        self.dash_t, self.dash_cd = time, DASH_COOLDOWN
         if self.ground is None:
             self.air_dash = False
         self.ground = self.ladder = None
@@ -456,6 +503,9 @@ class Pointer:
         self.dash_cd = max(0.0, self.dash_cd - dt)
         self.swing_t = max(0.0, self.swing_t - dt)
         self.swing_cd = max(0.0, self.swing_cd - dt)
+        self.shot_cd = max(0.0, self.shot_cd - dt)
+        self.f5_cd = max(0.0, self.f5_cd - dt)
+        self.recoil = max(0.0, self.recoil - dt)
         if self.ground is not None or self.ladder:
             self.air_jumps, self.air_dash = AIR_JUMPS, True
         self.dash_trail = ([(self.x, self.y)] + self.dash_trail)[:4] if self.dash_t > 0 else \
@@ -488,7 +538,7 @@ class Pointer:
         if self.dash_t > 0:
             # 대쉬 중에는 중력 없이 정한 방향으로만 날아간다
             self.dash_t = max(0.0, self.dash_t - dt)
-            self.vx, self.vy = self.dash_dir[0] * DASH_SPEED, self.dash_dir[1] * DASH_SPEED
+            self.vx, self.vy = self.dash_dir[0] * self.dash_speed, self.dash_dir[1] * self.dash_speed
             if self.dash_t <= 0:
                 self.vy *= 0.35             # 끝나면 살짝만 이어서 날아간다
         if self.mode == 'on' and not self.inside:
@@ -644,7 +694,7 @@ class Pointer:
     def anim_state(self):
         if self.hurt_t > 0 or self.dead:
             return 'hurt'
-        if self.poke_t > 0 or self.swing_t > 0:
+        if self.poke_t > 0 or self.swing_t > 0 or self.recoil > 0:
             return 'poke'
         if self.dash_t > 0:
             return 'jump'
@@ -673,9 +723,13 @@ class Pointer:
         if self.held:
             hx, hy = self.hand()
             draw_button(self.held, hx + ox + self.facing * 12, hy + oy, 0.8)
-        if self.weapon is not None:
+        if self.has('drawing'):
             hx, hy, a = self.weapon_pose()
             self.weapon.draw(hx, hy, a, self.facing)
+        elif self.has('gun'):
+            hx, hy = self.hand()
+            a = math.atan2(self.aim[1] - hy, self.aim[0] - hx)
+            self.weapon.draw(hx, hy, a, 1 if math.cos(a) >= 0 else -1, self.recoil / 0.1)
         if self.inside:
             gfx.pop_clip()
 
@@ -695,7 +749,14 @@ class Pointer:
             # 손 칸 왼쪽 위에 그림 무기 칸
             gfx.fill(sx - 2, b + 30, 38, 38, (0, 0, 0, 140))
             gfx.frame(sx - 2, b + 30, 38, 38, self.weapon.color)
-            self.weapon.draw_fit(sx + 1, b + 33, 32, 32)
+            if self.has('drawing'):
+                self.weapon.draw_fit(sx + 1, b + 33, 32, 32)
+            else:
+                self.weapon.draw_icon(sx + 5, b + 37, 24)
+                if self.f5_cd > 0:
+                    gfx.text('F5 %d' % math.ceil(self.f5_cd), sx + 42, b + 49, 12, (150, 150, 150), FONT_BOLD)
+                else:
+                    gfx.text('F5', sx + 42, b + 49, 12, WHITE, FONT_BOLD)
         q = 'Q' if self.eat_cd <= 0 else '%d' % math.ceil(self.eat_cd)
         gfx.text(q, sx + 46, b + 11, 12, WHITE if self.eat_cd <= 0 else (150, 150, 150), FONT_BOLD)
         gfx.text('Shift ' + self.mode.upper(), sx + 66, b + 11, 12, ACCENT_LIGHT if self.mode == 'on' else WHITE)

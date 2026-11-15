@@ -154,6 +154,10 @@ def right_down(mx, my):
         t = player.throw(mx, my) or player.throw_weapon(mx, my)
         if t:
             thrown.append(t)
+        elif player.f5(mx, my):
+            px, py = player.center()
+            effects.append(Ring(player.win if player.inside else player.layer, px, py, 40, (229, 20, 0),
+                                clip=player.inside))
         elif player.dash(mx, my):
             px, py = player.center()
             effects.append(Spark(player.win if player.inside else player.layer, px, py - 20, WHITE, 6,
@@ -220,6 +224,8 @@ def key_down(key):
         player.key(PLAYER_KEYS[key], True)
     elif key in (SDLK_LSHIFT, SDLK_RSHIFT):
         switch_mode()
+    elif key == SDLK_e:
+        player.drop_weapon()
     elif key == SDLK_q:
         player.eat()
     elif key == SDLK_ESCAPE:
@@ -346,11 +352,23 @@ def impact(stop, shake, amp):
 
 
 def take_picture(mx, my):
-    """사진 창 안에서 그림을 좌클릭하면 그 그림을 무기로 든다"""
-    if not player.inside or not hasattr(player.win.app, 'touches_picture') \
-            or not player.win.app.touches_picture(mx, my) or player.weapon is player.win.app.drawing:
+    """특수 무기 집기: 사진 창의 그림, VS Code의 [실행 및 디버그] 아이콘 (창 안에서 좌클릭)"""
+    if not player.inside:
         return False
-    player.take_weapon(player.win.app.drawing)
+    app = player.win.app
+    if hasattr(app, 'touches_debug') and app.touches_debug(mx, my):
+        from debuggun import DebugGun
+        player.take_weapon(DebugGun(app))
+        app.debug_taken = True
+        px, py = player.center()
+        effects.append(Ring(player.win, px, py + 10, 46, player.weapon.color))
+        effects.append(Popup(player.win, px, py + 50, '디버그 건!', player.weapon.color, 18))
+        section.hint('gun', '디버그 건', '좌클릭: 중단점 발사 (맞은 적은 1.5초 얼어붙음)',
+                     '우클릭: F5 Run 대쉬 (4초마다)   E: 버리기')
+        return True
+    if not hasattr(app, 'touches_picture') or not app.touches_picture(mx, my) or player.weapon is app.drawing:
+        return False
+    player.take_weapon(app.drawing)
     px, py = player.center()
     effects.append(Ring(player.win, px, py + 10, 46, player.weapon.color))
     effects.append(Popup(player.win, px, py + 50, '무기 장착!', player.weapon.color, 18))
@@ -361,6 +379,11 @@ def take_picture(mx, my):
 
 def poke(mx, my):
     """기본 무기 찌르기: 창 안이면 몬스터를, 창 밖이면 창 테두리를 찌른다. 그림 무기를 들었으면 휘두른다"""
+    if player.has('gun'):
+        shot = player.shoot(mx, my)
+        if shot:
+            thrown.append(shot)
+        return
     if player.weapon is not None:
         tip = player.swing(mx, my)
         if tip is None:
@@ -449,7 +472,7 @@ def hurt_player(damage, from_x):
 
 def swing_hits():
     """그림 무기를 휘두르는 동안: 그림의 칠한 칸이 닿은 몬스터를 한 번씩 맞힌다"""
-    if player.weapon is None or player.swing_t <= 0 or not player.inside:
+    if not player.has('drawing') or player.swing_t <= 0 or not player.inside:
         return
     pts = player.weapon_points()
     w = player.weapon
@@ -467,15 +490,46 @@ def swing_hits():
         impact(0.05, 0.15, 4 if damage < 20 else 7)
 
 
+def dash_hits():
+    """F5 Run 대쉬: 지나가며 닿은 적을 한 번씩 관통 데미지"""
+    if not player.dash_power or player.dash_t <= 0 or not player.inside:
+        return
+    body = (player.x, player.y, 48, 64)
+    for m in monsters:
+        if m.win is player.win and not m.dead and m not in player.dash_hits and overlap(body, m.rect()):
+            player.dash_hits.append(m)
+            m.hit(player.dash_power, 'f5', player.center()[0])
+            mx, my = m.center()
+            effects.append(Spark(m.win, mx, my, (229, 20, 0), 10))
+            effects.append(Popup(m.win, mx, my + 24, str(player.dash_power), (229, 20, 0), 22))
+            impact(0.05, 0.15, 6)
+
+
+def shot_walls():
+    """창 밖에서 쏜 중단점이 창에 맞으면 테두리에 금을 낸다 (부수고 들어가는 마지막 한 번은 직접 찔러야 한다)"""
+    for t in thrown:
+        if t.name != 'breakpoint' or t.win is not None or t.dead:
+            continue
+        win = wm.hit(t.x, t.y)[0]
+        if win is None or win in player.ghosts:
+            continue
+        t.dead = True
+        effects.append(Spark(player.layer, t.x, t.y, (229, 20, 0), 6, clip=False))
+        if len(win.cracks) < BREAK_HITS - 1:
+            win.crack(t.x, t.y)
+
+
 def fight():
     swing_hits()
+    dash_hits()
+    shot_walls()
     for t in thrown:
         for m in monsters:
             if t.win is None or t.dead or m.dead or m.win is not t.win or m in t.hits:
                 continue                    # 창 밖에서 던진 버튼은 몬스터(창 안에만 있음)를 못 맞힌다
             if overlap(t.rect(), m.rect()):
-                if t.name == 'drawing':
-                    t.drawing.strike(m, sys.modules[__name__], t.x, t.damage)
+                if hasattr(t, 'strike'):
+                    t.strike(m, sys.modules[__name__])
                 else:
                     m.hit(t.damage, t.name, t.x)
                 t.struck(m)

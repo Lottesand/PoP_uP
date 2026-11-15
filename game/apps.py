@@ -239,13 +239,29 @@ class VSCode(App):
     group = 'vscode'
     key, title, icon = 'vscode', 'escape.py - Visual Studio Code', 'vscode'
     size = (960, 600)
+    debug_taken = False                 # [\uC2E4\uD589 \uBC0F \uB514\uBC84\uADF8] \uC544\uC774\uCF58\uC744 \uB72F\uC5B4 \uAC14\uB294\uAC00 (\uB514\uBC84\uADF8 \uAC74)
+    debug_rect = (0, 0, 0, 0)
+
+    def touches_debug(self, mx, my):
+        l, b, w, h = self.debug_rect
+        return not self.debug_taken and l - 6 <= mx < l + w + 6 and b - 6 <= my < b + h + 6
 
     def draw(self, l, b, w, h, active):
+        import debuggun
         top = b + h
         gfx.fill(l, b, w, h, (30, 30, 30))
         gfx.fill(l, b + 22, 48, h - 22, (51, 51, 51))
-        for i, g in enumerate(('\uE8A5', G_SEARCH, '\uE8CB', '\uEBE8')):
-            gfx.symbol(g, l + 24, top - 28 - i * 48, 18, (200, 200, 200) if i == 0 else (130, 130, 130))
+        # \uD65C\uB3D9 \uD45C\uC2DC\uC904: \uD0D0\uC0C9\uAE30 \u00B7 \uAC80\uC0C9 \u00B7 \uC18C\uC2A4 \uC81C\uC5B4 \u00B7 \uC2E4\uD589 \uBC0F \uB514\uBC84\uADF8 \u00B7 \uD655\uC7A5
+        for i, g in enumerate(('\uE8A5', G_SEARCH, '\uE8CB', None, '\uEA86')):
+            cy = top - 28 - i * 48
+            if g is None:
+                self.debug_rect = (l + 12, cy - 12, 24, 24)
+                if self.debug_taken:
+                    gfx.frame(l + 12, cy - 12, 24, 24, (90, 90, 90))     # \uB72F\uACA8 \uB098\uAC04 \uC790\uB9AC
+                else:
+                    debuggun.icon().draw_fit(*self.debug_rect)
+                continue
+            gfx.symbol(g, l + 24, cy, 18, (200, 200, 200) if i == 0 else (130, 130, 130))
         gfx.fill(l + 48, b + 22, 200, h - 22, (37, 37, 38))
         gfx.text('탐색기', l + 64, top - 18, 11, (187, 187, 187))
         for i, name in enumerate(('escape.py', 'pointer.py', 'usb_key.txt')):
@@ -259,7 +275,7 @@ class VSCode(App):
             y = top - 60 - i * 20
             gfx.text(str(i + 1), l + 290, y, 13, (133, 133, 133), align='right')
             if i == 1:
-                gfx.fill(l + 258, y - 6, 12, 12, (229, 20, 0))     # 중단점
+                debuggun.draw_breakpoint(l + 264, y, 6)               # 중단점 (총알과 같은 빨간 점)
             x = l + 310
             for s, c in row:
                 x += gfx.text(s, x, y, 13, c) if c else gfx.text_width(s, 13)
