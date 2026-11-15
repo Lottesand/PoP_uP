@@ -84,6 +84,17 @@ held2 = grab_in(win, 'ribbon:파일')
 check('grab the 파일 ribbon tab', isinstance(held2, uiblocks.UIBlock) and 'ribbon:파일' in win.torn_blocks)
 pm.key_down(pm.SDLK_q)
 check('Q eats the piece like a button (+12)', P.held is None and P.hp == 62)
+from fx import Heal
+check('eating shows the heal effect and flashes the HP bar', any(isinstance(e, Heal) for e in pm.effects)
+      and P.heal_flash > 0 and P.heal_from == 50)
+P.invincible = 0
+for _ in range(14):
+    pm.update()
+frame()
+screenshot.shot(os.path.join(OUT, 'heal.png'))
+P.invincible = 99
+step(0.8)
+check('heal effect fades out', not any(isinstance(e, Heal) for e in pm.effects) and P.heal_flash == 0)
 frame()
 screenshot.shot(os.path.join(OUT, 'block_ribbon.png'))
 # 뜯긴 단추는 OS 모드에서도 눌리지 않고, 10초 뒤 돌아온다
