@@ -124,7 +124,7 @@ def mouse_down(mx, my):
     now = get_time()
     textbox.set_focus(None)            # 입력란을 다시 누르면 그 프로그램이 다시 잡는다
     if player.mode == 'on':
-        if not player.grab(mx, my, wm):
+        if not player.grab(mx, my, wm) and not take_picture(mx, my):
             poke(mx, my)
         return
     if menu_click(mx, my):
@@ -151,7 +151,7 @@ def mouse_down(mx, my):
 
 def right_down(mx, my):
     if player.mode == 'on':
-        t = player.throw(mx, my)
+        t = player.throw(mx, my) or player.throw_weapon(mx, my)
         if t:
             thrown.append(t)
         elif player.dash(mx, my):
@@ -345,16 +345,38 @@ def impact(stop, shake, amp):
     shake_amp = max(shake_amp if shake_t > 0 else 0, amp)
 
 
+def take_picture(mx, my):
+    """사진 창 안에서 그림을 좌클릭하면 그 그림을 무기로 든다"""
+    if not player.inside or not hasattr(player.win.app, 'touches_picture') \
+            or not player.win.app.touches_picture(mx, my) or player.weapon is player.win.app.drawing:
+        return False
+    player.take_weapon(player.win.app.drawing)
+    px, py = player.center()
+    effects.append(Ring(player.win, px, py + 10, 46, player.weapon.color))
+    effects.append(Popup(player.win, px, py + 50, '무기 장착!', player.weapon.color, 18))
+    section.hint('weapon', '그림 무기', '좌클릭: 휘두르기 (그림의 모양대로 맞는다)',
+                 '우클릭: 던지기 (사진 창에서 다시 집을 수 있음)')
+    return True
+
+
 def poke(mx, my):
-    """기본 무기 찌르기: 창 안이면 몬스터를, 창 밖이면 창 테두리를 찌른다"""
-    tip = player.poke(mx, my)
-    if tip is None:
-        return
-    tx, ty = tip
-    hx, hy = player.hand()
+    """기본 무기 찌르기: 창 안이면 몬스터를, 창 밖이면 창 테두리를 찌른다. 그림 무기를 들었으면 휘두른다"""
+    if player.weapon is not None:
+        tip = player.swing(mx, my)
+        if tip is None:
+            return
+        tx, ty = tip
+        swing_hits()                        # 첫 프레임에 닿은 적도 바로 맞는다
+    else:
+        tip = player.poke(mx, my)
+        if tip is None:
+            return
+        tx, ty = tip
+        hx, hy = player.hand()
+        effects.append(PokeTrail(player.win if player.inside else player.layer, hx, hy, tx, ty,
+                                 clip=player.inside))
     layer = player.win if player.inside else player.layer
-    effects.append(PokeTrail(layer, hx, hy, tx, ty, clip=player.inside))
-    if player.inside:
+    if player.inside and player.weapon is None:
         for m in monsters:
             if m.win is not player.win or m.dead:
                 continue                    # 다른 폴더 몬스터는 창이 없어서 위치도 없다
@@ -365,6 +387,7 @@ def poke(mx, my):
                 impact(0.03, 0.08, 2)
                 effects.append(Popup(m.win, *m.center(), str(POKE_DAMAGE), (255, 200, 0)))
                 return
+    if player.inside:
         # 안쪽에서 창 테두리(내용 영역 가장자리)를 찔렀으면 금이 가고, 세 번째에 깨고 나간다
         win = player.win
         cl, cb, cw, ch = win.client_rect()
@@ -424,13 +447,37 @@ def hurt_player(damage, from_x):
     return False
 
 
+def swing_hits():
+    """그림 무기를 휘두르는 동안: 그림의 칠한 칸이 닿은 몬스터를 한 번씩 맞힌다"""
+    if player.weapon is None or player.swing_t <= 0 or not player.inside:
+        return
+    pts = player.weapon_points()
+    w = player.weapon
+    for m in monsters:
+        if m.win is not player.win or m.dead or m in player.swing_hits:
+            continue
+        l, b, mw, mh = m.rect()
+        hit = next(((x, y) for x, y in pts if l - 4 <= x <= l + mw + 4 and b - 4 <= y <= b + mh + 4), None)
+        if hit is None:
+            continue
+        player.swing_hits.append(m)
+        damage = w.strike(m, sys.modules[__name__], player.center()[0])
+        effects.append(Spark(m.win, hit[0], hit[1], w.color, 8))
+        effects.append(Popup(m.win, *m.center(), str(damage), w.color, 20))
+        impact(0.05, 0.15, 4 if damage < 20 else 7)
+
+
 def fight():
+    swing_hits()
     for t in thrown:
         for m in monsters:
             if t.win is None or t.dead or m.dead or m.win is not t.win or m in t.hits:
                 continue                    # 창 밖에서 던진 버튼은 몬스터(창 안에만 있음)를 못 맞힌다
             if overlap(t.rect(), m.rect()):
-                m.hit(t.damage, t.name, t.x)
+                if t.name == 'drawing':
+                    t.drawing.strike(m, sys.modules[__name__], t.x, t.damage)
+                else:
+                    m.hit(t.damage, t.name, t.x)
                 t.struck(m)
                 mx, my = m.center()
                 heavy = t.name == 'close'

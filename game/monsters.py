@@ -27,6 +27,9 @@ class Monster:
         self.facing = -1
         self.on_ground = False
         self.anim_t = 0.0
+        self.burn = 0.0                 # 그림 무기 불 속성: 남은 초 (0.5초마다 2 데미지)
+        self.burn_tick = 0.0
+        self.slow = 0.0                 # 얼음 속성: 남은 초 (그동안 40% 속도)
 
     # ---------------------------------------------------------------- 좌표
     def area(self):
@@ -55,6 +58,18 @@ class Monster:
     def update(self, dt, game):
         self.flash = max(0.0, self.flash - dt)
         self.anim_t += dt
+        if self.burn > 0:
+            self.burn -= dt
+            self.burn_tick += dt
+            if self.burn_tick >= 0.5:
+                self.burn_tick -= 0.5
+                self.hp -= 2
+                self.flash = 0.1
+                if self.hp <= 0:
+                    self.dead = True
+        if self.slow > 0:
+            self.slow -= dt
+            dt *= 0.4
         if self.stun > 0:
             self.stun -= dt
             self.vx *= 0.85
@@ -102,6 +117,12 @@ class Monster:
         gfx.push_clip(*self.area())
         x, y, w, h = self.rect()
         sprites.char(self.SHEET).draw(self.anim_state(), self.anim_t, x + w / 2, y, self.flip())
+        if self.slow > 0:
+            gfx.fill(x, y, w, h, (120, 200, 255, 90))
+        if self.burn > 0:
+            for i in range(3):
+                fy = (self.anim_t * 60 + i * 13) % 26
+                gfx.fill(x + 6 + i * 13, y + h - 8 + fy, 6, 6, (255, 120 + i * 40, 0, 220 - int(fy * 7)))
         if self.hp < self.max_hp:
             gfx.fill(x, y + h + 6, w, 4, (60, 60, 60))
             gfx.fill(x, y + h + 6, w * max(0, self.hp) / self.max_hp, 4, CLOSE_RED)
