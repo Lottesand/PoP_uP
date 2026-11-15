@@ -10,11 +10,15 @@ from context_menu import ContextMenu
 
 
 def attach_samples():
-    """사진 백업 폴더의 예시 그림 파일에 실제 그림을 붙인다"""
-    backup = next(c for c in fs.DOCUMENTS.children if c.name == '사진 백업')
-    for node in backup.children:
-        if node.name in fs.SAMPLE_PICTURES:
-            node.picture = drawing.sample(fs.SAMPLE_PICTURES[node.name])
+    """예시 그림 파일(사진 백업 폴더 · 바탕 화면)에 실제 그림을 붙인다"""
+    todo = [fs.DOCUMENTS, fs.DESKTOP_FOLDER]
+    while todo:
+        folder = todo.pop()
+        for node in folder.children:
+            if node.kind == fs.FILE and node.name in fs.SAMPLE_PICTURES:
+                node.picture = drawing.sample(fs.SAMPLE_PICTURES[node.name])
+            elif node.kind == fs.FOLDER:
+                todo.append(node)
 
 
 attach_samples()

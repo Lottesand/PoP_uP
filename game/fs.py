@@ -177,7 +177,7 @@ ROOT = Node('내 PC', THIS_PC, children=[
 ])
 TRASH = Node('휴지통', RECYCLE)
 # 예시 그림: 그림판에 안 그려도 사진 창에서 집어 쓸 수 있는 무기 (그림은 shell이 drawing.sample로 붙인다)
-SAMPLE_PICTURES = {'불꽃 창.png': 'flame_spear', '얼음 망치.png': 'ice_hammer'}
+SAMPLE_PICTURES = {'불꽃 창.png': 'flame_spear', '얼음 망치.png': 'ice_hammer', '공룡.png': 'dino', '로고.png': 'logo'}
 for _n, _from in ((_txt('비밀번호 힌트.txt', '힌트: 처음 켠 날짜'), DOCUMENTS),
                   (Node('옛날 드라이버', children=[_txt('driver.inf')]), ROOT.children[7]),
                   (_txt('key_part_2.txt', '열쇠 조각 2/3'), DESKTOP_FOLDER)):
@@ -194,6 +194,7 @@ for _n in (Node('내 PC', LINK, target=ROOT), Node('휴지통', LINK, target=TRA
            Node('Chrome', APP, icon='browser', app='browser'), Node('그림판', APP, icon='paint', app='paint'),
            Node('Visual Studio Code', APP, icon='vscode', app='vscode'),
            Node('카카오톡', APP, icon='kakao', app='kakao'),
+           Node('공룡.png', FILE, icon='image_file'), Node('로고.png', FILE, icon='image_file'),
            Node('명령 프롬프트', APP, icon='terminal', app='terminal')):
     DESKTOP_FOLDER.add(_n)
 

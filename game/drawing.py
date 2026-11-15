@@ -287,6 +287,15 @@ SAMPLES = {
 
 
 def sample(name):
-    rows = SAMPLES[name]
-    width = max(len(r) for r in rows)
-    return Drawing([[SAMPLE_COLORS.get(ch) for ch in r.ljust(width)] for r in rows])
+    """예시 그림 → Drawing. SAMPLES의 글자 그림, 아니면 assets/pictures/<이름>.json (tools/make_pictures.py가 만든 칸 데이터)"""
+    if name in SAMPLES:
+        rows = SAMPLES[name]
+        width = max(len(r) for r in rows)
+        return Drawing([[SAMPLE_COLORS.get(ch) for ch in r.ljust(width)] for r in rows])
+    import json
+    import os
+    with open(os.path.join(ASSETS, 'pictures', name + '.json'), encoding='utf-8') as f:
+        data = json.load(f)
+    chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'
+    palette = {chars[i]: tuple(c) for i, c in enumerate(data['palette'])}
+    return Drawing([[palette.get(ch) for ch in row] for row in data['rows']])
