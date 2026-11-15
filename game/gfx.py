@@ -66,6 +66,16 @@ def circle(x, y, r, c):
         SDL_RenderDrawLine(p2.renderer, int(x - dx), sy, int(x + dx), sy)
 
 
+def triangle(cx, cy, size, c):
+    # 꼭짓점이 위인 정삼각형 (경고 아이콘)
+    _color(c)
+    h = int(size * 0.87)
+    for i in range(h):
+        half = size / 2 * i / h
+        sy = int(config.H - 1 - (cy + h / 2 - i))
+        SDL_RenderDrawLine(p2.renderer, int(cx - half), sy, int(cx + half), sy)
+
+
 def shadow(l, b, w, h, size=12, alpha=40):
     # 창 바깥으로 점점 옅어지는 그림자
     for i in range(size, 0, -2):

@@ -166,7 +166,9 @@ class WindowManager:
             self.focus(win)
             return win
         w, h = app.size
-        if app.center:
+        if getattr(app, 'pos', None):
+            x, y = app.pos
+        elif app.center:
             x, y = (W - w) // 2, (H + TASKBAR_H - h) // 2
         else:
             x = 140 + 32 * (self.cascade % 8)

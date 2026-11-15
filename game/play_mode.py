@@ -255,6 +255,9 @@ def update():
         t.update(dt)
     update_world(dt)
     toast.update(dt)
+    # 창 안에서 메시지 상자의 [확인]을 밟으면 누른 것과 같다
+    if player.mode == 'on' and player.ground is not None and hasattr(player.win.app, 'stepped_by')             and player.win.app.stepped_by(player):
+        player.win.app.press()
     thrown[:] = [t for t in thrown if not t.dead]
     # 침투 모드에서만 실제 마우스 커서를 숨긴다 (창이 닫혀 밖으로 밀려나도 다시 보이게)
     if (player.mode == 'on') != cursor_hidden:

@@ -52,10 +52,13 @@ class MessageBox(App):
     center = True
     _count = 0
 
-    def __init__(self, title, lines, kind='error'):
+    def __init__(self, title, lines, kind='error', on_ok=None, pos=None):
         MessageBox._count += 1
         self.key = 'dialog#%d' % MessageBox._count
         self.title, self.lines, self.kind = title, list(lines), kind
+        self.on_ok = on_ok              # [확인]을 누르거나 밟았을 때 할 일
+        self.pos = pos                  # (x, y)를 주면 가운데 대신 그 자리에 연다
+        self.center = pos is None
         w = max(gfx.text_width(ln, 12) for ln in self.lines) + 100
         self.size = (max(360, w), TITLE_H + 40 + 20 * len(self.lines) + 50)
         self.button = (0, 0, 0, 0)
@@ -64,8 +67,12 @@ class MessageBox(App):
         top = b + h
         gfx.fill(l, b, w, h, WHITE)
         cy = top - 24 - 10 * (len(self.lines) - 1)
-        gfx.circle(l + 38, cy, 16, CLOSE_RED if self.kind == 'error' else ACCENT)
-        gfx.symbol('\uE8BB' if self.kind == 'error' else '\uE946', l + 38, cy, 14, WHITE)
+        if self.kind == 'warning':
+            gfx.triangle(l + 38, cy, 34, (255, 185, 0))
+            gfx.text('!', l + 38, cy - 3, 20, BLACK, FONT_BOLD, align='center')
+        else:
+            gfx.circle(l + 38, cy, 16, CLOSE_RED if self.kind == 'error' else ACCENT)
+            gfx.symbol('\uE8BB' if self.kind == 'error' else '\uE946', l + 38, cy, 14, WHITE)
         for i, ln in enumerate(self.lines):
             gfx.text(ln, l + 68, top - 24 - i * 20, 12)
         gfx.fill(l, b, w, 46, (240, 240, 240))
@@ -75,11 +82,25 @@ class MessageBox(App):
         gfx.frame(bl, bb, bw, bh, ACCENT if active else (173, 173, 173))
         gfx.text('확인', bl + bw / 2, bb + bh / 2, 12, align='center')
 
+    def platforms(self):
+        # 포인터가 창 안에서 [확인] 단추를 밟을 수 있다
+        bl, bb, bw, bh = self.button
+        return [(bl, bl + bw, bb + bh)] if bw else []
+
+    def press(self):
+        import shell
+        shell.close(self)
+        if self.on_ok:
+            self.on_ok()
+
+    def stepped_by(self, player):
+        bl, bb, bw, bh = self.button
+        return bw and abs(player.y - (bb + bh)) < 1 and player.x + 42 > bl and player.x + 6 < bl + bw
+
     def mouse_down(self, mx, my, now):
         bl, bb, bw, bh = self.button
         if bl <= mx < bl + bw and bb <= my < bb + bh:
-            import shell
-            shell.close(self)
+            self.press()
 
 
 # ==================================================================== 메모장
