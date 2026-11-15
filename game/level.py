@@ -1,7 +1,14 @@
 # 구간 1 (파일 관리자)에 등장하는 몬스터 배치
+import random
 import fs
-from monsters import KINDS
+from monsters import KINDS, BugWorm
 from config import TASKBAR_H
+
+# 버그는 폴더 창을 열어 두면 창 가장자리에서 계속 튀어나온다
+SPAWNING = True                 # 테스트에서 끈다
+SPAWN_FIRST, SPAWN_EVERY = 2.0, 3.0
+MAX_BUGS = 7                    # 한 폴더에 동시에 있을 수 있는 버그 수
+EDGES = ('left', 'top', 'right', 'bottom')
 
 
 def find(parent, *names):
@@ -15,16 +22,52 @@ def find(parent, *names):
 def encounters():
     docs = fs.DOCUMENTS
     return [
-        (docs, [('bug', 260), ('bug', 470)]),
-        (find(docs, '과제'), [('caret', 320), ('bug', 140)]),
-        (find(docs, '사진 백업'), [('bug', 120), ('bug', 300), ('bug', 480)]),
-        (find(docs, '숨겨진 폴더'), [('bomber', 400), ('caret', 180)]),
-        (find(docs, '숨겨진 폴더', '설정'), [('caret', 460), ('bug', 220), ('bomber', 560)]),
+        (docs, [('bug', 180), ('bug', 360), ('bug', 540)]),
+        (find(docs, '과제'), [('caret', 320), ('bug', 140), ('bug', 480)]),
+        (find(docs, '사진 백업'), [('bug', 100), ('bug', 240), ('bug', 380), ('bug', 520)]),
+        (find(docs, '숨겨진 폴더'), [('bomber', 400), ('caret', 180), ('bug', 560)]),
+        (find(docs, '숨겨진 폴더', '설정'), [('caret', 460), ('bug', 220), ('bug', 340), ('bomber', 560)]),
     ]
 
 
 def spawn():
-    return [KINDS[kind](folder, rx) for folder, specs in encounters() for kind, rx in specs]
+    # 버그는 높이도 여기저기 (위에서 내려다본 바닥이라서), 나머지는 바닥에 선다
+    return [KINDS[kind](folder, rx) if kind == 'bug' else KINDS[kind](folder, rx, 0.0)
+            for folder, specs in encounters() for kind, rx in specs]
+
+
+class Spawner:
+    """보이는 폴더 창마다 일정 시간이 지나면 버그가 왼쪽이나 오른쪽 가장자리에서 튀어나온다"""
+
+    def __init__(self):
+        self.timers = {}            # 폴더 id → 다음 출현까지 남은 초
+        self.count = 0
+
+    def update(self, dt, game):
+        if not SPAWNING:
+            return
+        shown = set()
+        for win in game.wm.visible():
+            folder = getattr(win.app, 'node', None)
+            if folder is None or folder.kind != fs.FOLDER or folder.locked or win.app.content[2] <= 0:
+                continue
+            if folder.id in shown or window_for(folder, game.wm) is not win:
+                continue
+            shown.add(folder.id)
+            t = self.timers.get(folder.id, SPAWN_FIRST) - dt
+            if t <= 0:
+                t = SPAWN_EVERY
+                if sum(1 for m in game.monsters if m.folder is folder and isinstance(m, BugWorm)) < MAX_BUGS:
+                    cw, ch = win.app.content[2], win.app.content[3]
+                    self.count += 1
+                    edge = EDGES[self.count % 4]                  # 네 방향을 돌아가며
+                    along = random.uniform(0.15, 0.85)
+                    rx = {'left': 0, 'right': cw - BugWorm.w}.get(edge, along * (cw - BugWorm.w))
+                    ry = {'bottom': 0, 'top': ch - BugWorm.h}.get(edge, along * (ch - BugWorm.h))
+                    bug = BugWorm(folder, rx, ry)
+                    bug.burst_in(edge)
+                    game.monsters.append(bug)
+            self.timers[folder.id] = t
 
 
 def window_for(folder, wm):
@@ -49,8 +92,9 @@ class Section:
         import apps
         game.wm.open(apps.MessageBox('시스템 경고', [
             'USB 드라이브(E:)가 잠겼습니다. 이 PC에서 나갈 수 없습니다.',
-            'A/D: 이동   Space: 점프   Shift: 창 안으로 들어가기',
-            '이 창 안으로 들어가서 [확인] 단추를 밟으세요.'], 'warning', self.begin, (230, TASKBAR_H + 20)))
+            'A/D: 이동   Space: 점프   Shift: 공격 모드   좌클릭: 찌르기',
+            '공격 모드에서 이 창 테두리를 세 번 찔러 부수고 들어가서 [확인]을 밟으세요.'],
+            'warning', self.begin, (230, TASKBAR_H + 20)))
 
     def begin(self):
         import toast
@@ -69,7 +113,10 @@ class Section:
             return
         self.time += dt
         p = game.player
-        if p.mode == 'on':
+        if p.mode == 'on' and not p.inside:
+            self.hint('attack', '공격 모드', '창이 벽이 됩니다. 좌클릭으로 창 테두리를 세 번 찌르면',
+                      '부서지면서 그 창 안으로 들어갑니다.')
+        if p.inside:
             self.hint('enter', '창 안으로 들어왔습니다', 'Shift를 다시 누르면 제목 표시줄 위로 튀어나옵니다.')
             if any(m.win is p.win for m in game.monsters):
                 self.hint('monster', 'OS의 버그가 나타났습니다', '좌클릭: 가까운 창 버튼(─ ☐ ✕) 뜯기',
@@ -78,7 +125,7 @@ class Section:
                 self.hint('ladder', '높은 곳에 닿지 않나요?', 'W/S: 오른쪽 스크롤바를 사다리처럼 오르내리기')
         if p.hp <= 60:
             self.hint('heal', 'HP가 줄었습니다', 'Q: 들고 있는 버튼을 먹어 HP 12 회복 (8초마다)')
-        if p.mode == 'on' and p.ground is not None and fs.BREAKER.custom_icon == 'breaker_on':
+        if p.inside and p.ground is not None and fs.BREAKER.custom_icon == 'breaker_on':
             for node, (l, b, w, h) in getattr(p.win.app, 'items', []):
                 if node is fs.BREAKER and abs(p.y - (b + h)) < 1 and p.x + 42 > l and p.x + 6 < l + w:
                     self.clear(game)
