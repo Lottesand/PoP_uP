@@ -74,7 +74,7 @@ check('all bugs dead -> [켜기] unlocked', app.ready and app.enabled('on') and 
 P.enter(bwin, (l_ + 20, b_ + 80))
 P.x, P.y, P.vy = l_ + 30, b_ + 120, 0
 step(1.0)
-check('stepping on [켜기] inside the window -> section clear', P.inside and pm.section.state == 'clear')
+check('stepping on [켜기] inside the window -> section 1 clear, section 2 starts', P.inside and pm.section.state == 'web')
 check('online: taskbar and chrome', pm.taskbar.online and apps.Browser.online)
 check('clear dialog shown', pm.wm.active.app.title == '구간 1 클리어')
 screenshot.shot(os.path.join(OUT, '11_clear.png'))
