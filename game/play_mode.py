@@ -555,6 +555,7 @@ def fight():
 def update_world(dt):
     game = sys.modules[__name__]
     spawner.update(dt, game)
+    player.pull = (0.0, 0.0)                # 블랙홀이 이번 프레임에 다시 정한다
     for m in monsters:
         m.win = level.window_for(m.folder, wm)
         if m.win is not None:
@@ -599,12 +600,30 @@ def draw_scene():
     desktop.draw_drag()
     taskbar.draw(wm, start.open)
     player.draw_hud()
+    draw_boss_bar()
     toast.draw()
     start.draw()
     if shell.menu:
         shell.menu.draw()
     if player.mode == 'on':
         draw_crosshair(*mouse)
+
+
+def draw_boss_bar():
+    """보스가 보이는 창에 있으면 화면 위쪽 가운데에 이름과 큰 HP 막대"""
+    boss = next((m for m in monsters if getattr(m, 'boss', False) and m.win is not None and not m.dead), None)
+    if boss is None:
+        return
+    w, l, y = 720, (W - 720) // 2, H - 64
+    gfx.fill(l - 12, y - 12, w + 24, 50, (0, 0, 0, 170))
+    gfx.text(boss.title, l, y + 26, 14, WHITE, FONT_BOLD)
+    if getattr(boss, 'phase', 1) == 2:
+        gfx.text('2페이즈', l + w, y + 26, 12, (255, 120, 120), FONT_BOLD, align='right')
+    gfx.fill(l, y, w, 12, (60, 60, 60))
+    k = max(0, boss.hp) / boss.max_hp
+    gfx.fill(l, y, int(w * k), 12, CLOSE_RED if getattr(boss, 'state', '') != 'stagger' else (255, 200, 0))
+    gfx.frame(l, y, w, 12, (200, 200, 200))
+    gfx.text('%d / %d' % (max(0, boss.hp), boss.max_hp), l + w / 2, y + 6, 10, WHITE, FONT_BOLD, align='center')
 
 
 def draw():

@@ -181,6 +181,7 @@ class Pointer:
         self.dash_speed = DASH_SPEED
         self.dash_power = 0             # F5 대쉬: 지나가며 닿은 적에게 주는 데미지
         self.dash_hits = []
+        self.pull = (0.0, 0.0)          # 블랙홀이 끌어당기는 속도 (매 프레임 새로 정해진다, 사다리에선 무시)
         self.swing_t = self.swing_len = self.swing_cd = 0.0
         self.swing_from = self.swing_to = 0.0
         self.swing_hits = []            # 이번 휘두르기에 이미 맞힌 몬스터
@@ -534,7 +535,7 @@ class Pointer:
             self.facing = move
         if self.climb(dt, wm, move):
             return
-        self.vx = move * RUN_SPEED + self.kb
+        self.vx = move * RUN_SPEED + self.kb + self.pull[0]
         if self.dash_t > 0:
             # 대쉬 중에는 중력 없이 정한 방향으로만 날아간다
             self.dash_t = max(0.0, self.dash_t - dt)
@@ -548,7 +549,7 @@ class Pointer:
         self.x += self.vx * dt
         if self.dash_t <= 0:
             self.vy -= GRAVITY * dt
-        self.y += self.vy * dt
+        self.y += (self.vy + self.pull[1]) * dt
 
         if self.inside:
             self.collide_inside(prev_y)
