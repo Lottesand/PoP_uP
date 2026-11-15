@@ -26,6 +26,8 @@ monsters = []
 bullets = []
 effects = []
 checkpoint = (160, TASKBAR_H)      # HP 0 → 블루스크린 → 재부팅 뒤 여기서 다시 시작
+section = None
+TUTORIAL = True                    # False면 시작 경고창 없이 (테스트용)
 dead_t = 0.0
 mouse = (0, 0)
 cursor_hidden = False
@@ -50,6 +52,12 @@ def init():
     bullets.clear()
     effects.clear()
     toast.clear()
+    global section
+    section = level.Section()
+    if TUTORIAL:
+        section.start(sys.modules[__name__])
+    else:
+        section.state = 'explore'
 
 
 def finish():
@@ -70,6 +78,7 @@ def respawn():
     player = Pointer(*checkpoint)
     thrown.clear()
     dead_t = 0.0
+    section.deaths += 1
 
 
 def taskbar_click(name):
@@ -254,6 +263,7 @@ def update():
     for t in thrown:
         t.update(dt)
     update_world(dt)
+    section.update(dt, sys.modules[__name__])
     toast.update(dt)
     # 창 안에서 메시지 상자의 [확인]을 밟으면 누른 것과 같다
     if player.mode == 'on' and player.ground is not None and hasattr(player.win.app, 'stepped_by')             and player.win.app.stepped_by(player):
