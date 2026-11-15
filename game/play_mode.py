@@ -324,6 +324,16 @@ def update():
         player.left = player.right = player.up = player.down = False
         if wm.active is None or wm.active.app is not box.owner:
             textbox.set_focus(None)
+    player.band = desktop.band_rect() if desktop.band and not player.inside else None
+    if player.band and player.ground == 'band':
+        # 선택 상자를 끌어 올리면 그 위에 선 포인터도 같이 올라간다
+        l, b, w, h = player.band
+        if player.x + 42 > l and player.x + 6 < l + w:
+            player.y = b + h
+        else:
+            player.ground = None
+    elif player.ground == 'band':
+        player.ground = None                # 마우스를 떼면 상자가 사라지고 떨어진다
     player.update(dt, wm)
     if player.dead:
         dead_t += dt
@@ -578,17 +588,45 @@ def dash_hits():
 
 
 def shot_walls():
-    """창 밖에서 쏜 중단점이 창에 맞으면 테두리에 금을 낸다 (부수고 들어가는 마지막 한 번은 직접 찔러야 한다)"""
+    """중단점이 창 테두리에 맞으면 금을 낸다. 세 번째에 부서진다
+    창 밖에서: 부순 창이 3초 동안 열려서 걸어(대쉬해서) 들어갈 수 있다
+    창 안에서: 부순 자리가 3초 동안 열려서 그쪽으로 가면 깨고 나간다"""
     for t in thrown:
-        if t.name != 'breakpoint' or t.win is not None or t.dead:
+        if t.name != 'breakpoint' or t.dead and not getattr(t, 'wall', None):
             continue
-        win = wm.hit(t.x, t.y)[0]
-        if win is None or win in player.ghosts:
-            continue
-        t.dead = True
-        effects.append(Spark(player.layer, t.x, t.y, (229, 20, 0), 6, clip=False))
-        if len(win.cracks) < BREAK_HITS - 1:
-            win.crack(t.x, t.y)
+        if t.win is None:
+            win = wm.hit(t.x, t.y)[0]
+            if win is None or win in player.ghosts:
+                continue
+            t.dead = True
+            x, y = t.x, t.y
+            effects.append(Spark(player.layer, x, y, (229, 20, 0), 6, clip=False))
+            if win.crack(x, y) >= BREAK_HITS:
+                effects.append(Ring(player.layer, x, y, 40, (229, 20, 0), clip=False))
+                win.shatter()
+                win.hole = (win.hole[0], win.hole[1], 3.0)
+                win.breach = 3.0
+                section.hint('breach', '창이 뚫렸습니다', '3초 안에 걸어서(또는 대쉬로) 들어가세요.')
+        elif t.wall:
+            win, (x, y) = t.win, t.wall
+            t.wall = None
+            if win not in wm.visible():
+                continue
+            effects.append(Spark(win, x, y, (229, 20, 0), 6, clip=False))
+            if win.crack(x, y) >= BREAK_HITS:
+                effects.append(Ring(win, x, y, 40, (229, 20, 0), clip=False))
+                win.shatter()
+                win.hole = (win.hole[0], win.hole[1], 3.0)
+                win.exit = (x, y, 3.0)
+                section.hint('exit', '벽이 뚫렸습니다', '뚫린 자리로 가면 창 밖으로 나갑니다 (3초).')
+    # 안쪽 벽이 뚫린 창: 그 자리 가까이 가면 깨고 나간다
+    if player.inside and player.win.exit:
+        x, y, _ = player.win.exit
+        px, py = player.center()
+        if abs(px - x) < 70 and abs(py - y) < 80:
+            win = player.win
+            win.exit = None
+            player.break_out(win, (x, y))
 
 
 def fight():

@@ -201,6 +201,7 @@ class Pointer:
         self.dash_hits = []
         self.pull = (0.0, 0.0)
         self.heal_flash = 0.0           # 회복한 뒤 HP 막대가 반짝이는 남은 시간
+        self.band = None                # 바탕화면 선택 상자 (마우스를 누르고 있는 동안 밟고 부딪힌다)
         self.heal_from = MAX_HP         # 회복하기 전 HP (늘어난 칸을 반짝이게)          # 블랙홀이 끌어당기는 속도 (매 프레임 새로 정해진다, 사다리에선 무시)
         self.swing_t = self.swing_len = self.swing_cd = 0.0
         self.swing_from = self.swing_to = 0.0
@@ -767,7 +768,7 @@ class Pointer:
         self.vy = 0
         self.ground = owner
         if self.mode == 'off':
-            win = owner if owner != 'taskbar' else None
+            win = owner if owner not in ('taskbar', 'band') else None
             self.layer = win
             self.set_anchor(win)
 
@@ -780,7 +781,11 @@ class Pointer:
             self.set_anchor(None)
             return
         best = None
-        for x0, x1, py, owner in os_platforms(wm):
+        plats = os_platforms(wm)
+        if self.band:
+            l, b, w, h = self.band
+            plats.append((l, l + w, b + h, 'band'))
+        for x0, x1, py, owner in plats:
             if self.x + PW - 6 > x0 and self.x + 6 < x1 and prev_y >= py - 0.01 and self.y <= py:
                 if best is None or py > best[0]:
                     best = (py, owner if owner is not None else 'taskbar')
@@ -794,12 +799,14 @@ class Pointer:
         """공격 모드 (창 밖): 보이는 창이 모두 단단한 벽이다. 가로, 세로를 나눠 밀어낸다"""
         visible = wm.visible()
         self.ghosts = {w for w in self.ghosts if w in visible and self.overlaps(w.rect())}
-        solids = [w for w in visible if w not in self.ghosts]
+        solids = [w for w in visible if w not in self.ghosts and w.breach <= 0]
         self.layer = visible[-1] if visible else None          # 모든 창보다 앞에 그린다
+        rects = [(w.rect(), w) for w in solids]
+        if self.band and not self.overlaps(self.band):
+            rects.append((self.band, 'band'))
         px = self.x
         self.x = min(max(self.x + self.vx * dt, 0), W - PW)
-        for win in solids:
-            l, b, w, h = win.rect()
+        for (l, b, w, h), win in rects:
             if self.overlaps((l, b, w, h)):
                 if px + PW <= l + 0.01:
                     self.x = l - PW
@@ -816,15 +823,19 @@ class Pointer:
             self.y, self.vy, self.ground = TASKBAR_H, 0, 'taskbar'
         if self.y + PH > H:
             self.y, self.vy = H - PH, min(self.vy, 0)
-        for win in solids:
-            l, b, w, h = win.rect()
+        for (l, b, w, h), win in rects:
             if not self.overlaps((l, b, w, h)):
                 continue
             if py >= b + h - 0.01:
                 self.y, self.vy, self.ground = b + h, 0, win
             elif py + PH <= b + 0.01:
                 self.y, self.vy = b - PH, min(self.vy, 0)
-        self.set_anchor(self.ground if self.ground not in (None, 'taskbar') else None)
+        self.set_anchor(self.ground if self.ground not in (None, 'taskbar', 'band') else None)
+        # 디버그 건으로 테두리를 부순 창은 잠깐 열려 있어서, 걸어 들어가면 그 창 안으로 들어간다
+        for win in reversed(visible):
+            if win.breach > 0 and win not in self.ghosts and self.overlaps(win.rect()):
+                self.enter(win, self.center())
+                return
 
     def collide_inside(self, prev_y):
         l, b, w, h = self.win.client_rect()

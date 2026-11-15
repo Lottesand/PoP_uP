@@ -24,6 +24,10 @@ def wallpaper_name():
     return WALLPAPERS[-1]
 
 
+def _touch(a, b):
+    return a[0] < b[0] + b[2] and b[0] < a[0] + a[2] and a[1] < b[1] + b[3] and b[1] < a[1] + a[3]
+
+
 def nearest_free(used, near):
     cells = [(c, r) for c in range(COLS) for r in range(ROWS) if (c, r) not in used]
     return min(cells, key=lambda cr: (cr[0] - near[0]) ** 2 + (cr[1] - near[1]) ** 2)
@@ -51,6 +55,18 @@ class Desktop:
         self.dragging = False
         self.mouse = (0, 0)
         self.drop = None               # 끌고 있는 아이콘을 놓으면 들어갈 노드
+        self.band = None               # 빈 곳을 끌어 만드는 파란 선택 상자 (시작 x, y, 지금 x, y)
+        self.picked = []               # 선택 상자로 고른 아이콘들 (함께 옮긴다)
+
+    def band_rect(self):
+        """선택 상자 (l, b, w, h). 마우스를 누르고 있는 동안은 포인터가 밟고 부딪히는 발판이기도 하다"""
+        if self.band is None:
+            return None
+        x0, y0, x1, y1 = self.band
+        return min(x0, x1), min(y0, y1), abs(x1 - x0), abs(y1 - y0)
+
+    def chosen(self, node):
+        return node is self.selected or node in self.picked
 
     # ---------------------------------------------------------------- 칸 배치
     def items(self):
@@ -82,6 +98,13 @@ class Desktop:
     # ---------------------------------------------------------------- 마우스
     def mouse_move(self, mx, my, over_other):
         self.mouse = (mx, my)
+        if self.band is not None:
+            x0, y0 = self.band[:2]
+            self.band = (x0, y0, mx, max(TASKBAR_H, my))
+            l, b, w, h = self.band_rect()
+            self.picked = [n for n in self.items() if _touch(cell_rect(*n.pos), (l, b, w, h))]
+            self.selected = self.picked[0] if self.picked else None
+            return True
         if self.press:
             node, px, py = self.press
             if not self.dragging and abs(mx - px) + abs(my - py) >= DRAG_START:
@@ -103,9 +126,13 @@ class Desktop:
     def mouse_down(self, mx, my, now):
         node = self.node_at(mx, my)
         self.focused = True
-        self.selected = node
         if node is None:
+            self.selected, self.picked = None, []
+            self.band = (mx, my, mx, my)        # 빈 곳: 선택 상자 시작
             return
+        if node not in self.picked:
+            self.picked = []
+        self.selected = node
         self.press = (node, mx, my)
         last, t = self.last_click
         self.last_click = (node, now)
@@ -115,11 +142,35 @@ class Desktop:
             shell.open_node(node)
 
     def mouse_up(self, mx, my):
+        self.band = None
         if self.press and self.dragging:
-            shell.drop(self.press[0], mx, my)
+            node = self.press[0]
+            group = self.picked if node in self.picked and len(self.picked) > 1 else [node]
+            if len(group) == 1:
+                shell.drop(node, mx, my)
+            else:
+                self.drop_group(node, group, mx, my)
         self.press = None
         self.dragging = False
         self.drop = None
+
+    def drop_group(self, lead, group, mx, my):
+        """여러 아이콘을 함께 놓는다: 바탕 화면이면 모양 그대로 칸을 옮기고, 폴더 · 휴지통이면 모두 그리로"""
+        target, cell = shell.drop_target(mx, my, lead)
+        if target is None:
+            return
+        if target is self.folder and cell is not None:
+            dc, dr = cell[0] - lead.pos[0], cell[1] - lead.pos[1]
+            moving = set(group)
+            used = {n.pos for n in self.folder.children if n not in moving}
+            for n in group:
+                want = (min(COLS - 1, max(0, n.pos[0] + dc)), min(ROWS - 1, max(0, n.pos[1] + dr)))
+                n.pos = want if want not in used else nearest_free(used, want)
+                used.add(n.pos)
+            return
+        for n in group:
+            fs.move(n, target)              # 자기 자신이나 자기 안으로는 fs.move가 막는다
+        self.picked = [n for n in self.picked if n.parent is self.folder]
 
     def context(self, mx, my):
         node = self.node_at(mx, my)
@@ -160,18 +211,26 @@ class Desktop:
     def draw(self):
         gfx.image(self.wallpaper).draw_to_origin(0, 0, W, H)
         dragged = self.press[0] if self.dragging else None
+        group = self.picked if dragged in self.picked else [dragged]
         for node in self.items():
             l, b, w, h = cell_rect(*node.pos)
-            self.draw_icon(node, l, b + h, node is self.selected, node is self.hover or node is self.drop,
-                           0.5 if node is dragged else None)
+            self.draw_icon(node, l, b + h, self.chosen(node), node is self.hover or node is self.drop,
+                           0.5 if dragged is not None and node in group else None)
+        band = self.band_rect()
+        if band and band[2] > 1 and band[3] > 1:
+            # 윈도우 선택 상자: 옅은 파랑 + 파란 테두리
+            gfx.fill(*band, (0, 120, 215, 70))
+            gfx.frame(*band, (0, 120, 215))
 
     def draw_drag(self):
         # 끌고 있는 아이콘은 창들보다 위에 반투명하게 그린다 (바탕화면 아이콘 · 탐색기 항목 모두)
         mx, my = self.mouse
         if self.dragging:
             node, px, py = self.press
-            l, b, w, h = cell_rect(*node.pos)
-            self.draw_icon(node, l + mx - px, b + h + my - py, False, False, 0.6)
+            group = self.picked if node in self.picked and len(self.picked) > 1 else [node]
+            for n in group:
+                l, b, w, h = cell_rect(*n.pos)
+                self.draw_icon(n, l + mx - px, b + h + my - py, False, False, 0.6)
         elif shell.drag is not None:
             node, px, py = shell.drag
             self.draw_icon(node, mx - ICON_CELL_W / 2, my + 30, False, False, 0.6)
