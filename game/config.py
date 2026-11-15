@@ -13,6 +13,7 @@ RESIZE_GRIP = 6
 WIN_MIN_W, WIN_MIN_H = 240, 160
 ICON_CELL_W, ICON_CELL_H = 76, 92
 DOUBLE_CLICK = 0.4
+CRACK_HEAL = 4.0                  # 찔린 창 테두리의 금이 아무는 시간
 
 # 윈도우 10 한국어판처럼 영문·숫자는 Segoe UI, 한글은 맑은 고딕으로 그린다
 _FONTS = 'C:/Windows/Fonts/'

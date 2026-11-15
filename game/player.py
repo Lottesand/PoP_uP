@@ -2,11 +2,12 @@
 #
 # Shift OFF (OS 제어 모드): 창의 제목 표시줄 윗면과 작업 표시줄 윗면을 밟고 다닌다.
 #   창 안쪽(내용 영역)은 뒤로 지나간다. 마지막으로 밟은 창 바로 위 층에 그려져서, 그보다 앞의 창에는 가려진다.
-# Shift ON (침투 모드): 겹치거나 발밑에 있는 창 중 가장 앞의 창 안으로 들어간다.
-#   그 창의 내용 영역이 무대가 되고(가장자리는 벽), 마우스는 조준선이 된다.
-#   다시 Shift를 누르면 그 창의 제목 표시줄 위로 튀어나온다.
+# Shift ON (공격 모드): 마우스가 조준선이 되고 창들이 단단한 벽이 된다. 기본 무기는 손가락 찌르기(좌클릭).
+#   창 테두리를 세 번 찌르면 금이 가다 부서지고, 부서진 자리로 그 창 안에 들어간다.
+#   창 안에서는 그 창의 내용 영역이 무대가 되고(가장자리는 벽), 다시 Shift를 누르면 제목 표시줄 위로 튀어나온다.
 import math
 import gfx
+import sprites
 from config import *
 
 PW, PH = 48, 64
@@ -21,12 +22,15 @@ GRAB_RANGE = 160
 THROW_SPEED = 1400
 THROW_GRAVITY = 600
 EAT_HEAL, EAT_COOLDOWN = 12, 8.0
+POKE_REACH, POKE_TIME, POKE_COOLDOWN, POKE_DAMAGE = 60, 0.16, 0.28, 8
+BREAK_HITS = 3                  # 창 테두리를 이만큼 찌르면 부서진다
 BUTTON_RESPAWN = 10.0
 MAX_HP = 100
 INVINCIBLE = 1.0               # 맞은 뒤 무적 시간
 KNOCKBACK = 300
 
 GLYPH = {'min': '\uE921', 'max': '\uE922', 'close': '\uE8BB'}
+FACES = {'@_@': 'calm', '#_#': 'angry', 'x_x': 'dizzy'}     # \uD45C\uC815 \u2192 \uC2A4\uD504\uB77C\uC774\uD2B8 \uC2DC\uD2B8
 
 
 # ==================================================================== 발판 계산
@@ -150,7 +154,8 @@ class Pointer:
         self.x, self.y = x, y           # 왼쪽 아래
         self.vx = self.vy = 0.0
         self.mode = 'off'
-        self.win = None                 # ON: 들어가 있는 창
+        self.win = None                 # ON에서 들어가 있는 창 (None이면 창 밖 공격 모드)
+        self.ghosts = set()             # Shift ON 순간 겹쳐 있던 창: 빠져나올 때까지는 벽이 아니다
         self.layer = None               # 이 창 바로 위 층에 그린다 (None이면 바탕화면 층)
         self.ground = None              # 밟고 있는 발판의 주인 ('taskbar', 창, 또는 None=공중)
         self.anchor = None              # (창, 지난 left, 지난 top): 창이 움직이면 같이 움직인다
@@ -168,6 +173,10 @@ class Pointer:
         self.invincible = 0.0
         self.kb = 0.0                   # 넉백 가로 속도 (점점 줄어든다)
         self.dead = False
+        self.anim_t = 0.0
+        self.poke_t = 0.0               # 찌르는 중 (남은 시간)
+        self.poke_cd = 0.0
+        self.poke_dir = (1.0, 0.0)
         self.aim = (W / 2, H / 2)
 
     # ---------------------------------------------------------------- 입력
@@ -189,37 +198,38 @@ class Pointer:
             elif not down and self.vy > 0:
                 self.vy *= JUMP_CUT
 
+    @property
+    def inside(self):
+        return self.win is not None
+
     def toggle(self, wm):
         if self.switch_cd > 0:
             return False
         if self.mode == 'off':
-            target = self.window_to_enter(wm)
-            if target is None:
-                self.fail_t = 0.25
-                return False
-            self.enter(target)
-        else:
+            self.mode = 'on'
+            self.ghosts = {w for w in wm.visible() if self.overlaps(w.rect())}
+        elif self.inside:
             self.pop_out()
+        else:
+            self.mode = 'off'
         self.switch_cd = SWITCH_COOLDOWN
         return True
 
-    def window_to_enter(self, wm):
-        for win in reversed(wm.visible()):
-            l, b, w, h = win.rect()
-            overlap = self.x < l + w and self.x + PW > l and self.y < b + h and self.y + PH > b
-            if overlap or self.ground is win:
-                return win
-        return None
+    def overlaps(self, rect):
+        l, b, w, h = rect
+        return self.x < l + w and self.x + PW > l and self.y < b + h and self.y + PH > b
 
-    def enter(self, win):
+    def enter(self, win, at=None):
+        """창 안으로 들어간다. at: 부서진 자리 (없으면 지금 자리에서 가장 가까운 곳)"""
         self.mode, self.win, self.layer = 'on', win, win
         l, b, w, h = win.client_rect()
+        if at is not None:
+            self.x, self.y = at[0] - PW / 2, at[1] - PH / 2
         self.x = min(max(self.x, l), l + w - PW)
-        if self.y + PH > b + h or self.ground is win:
-            self.y = b + h - PH
-        self.y = max(b, self.y)
+        self.y = min(max(self.y, b), b + h - PH)
         self.vy = 0
-        self.ground = None
+        self.ground = self.ladder = None
+        self.ghosts = set()
         self.set_anchor(win)
 
     def pop_out(self):
@@ -236,6 +246,7 @@ class Pointer:
     def force_out(self):
         # 들어가 있던 창이 닫히거나 최소화되면 그 자리에서 밖으로 떨어진다
         self.mode, self.win, self.layer = 'off', None, None
+        self.ghosts = set()
         self.ground = None
         self.set_anchor(None)
 
@@ -268,6 +279,22 @@ class Pointer:
 
     def hand(self):
         return self.x + PW / 2 + self.facing * 18, self.y + PH - 12
+
+    def poke(self, mx, my):
+        """기본 무기: 조준한 쪽으로 손가락을 찌른다. 찌른 끝 위치를 돌려준다 (쿨타임 중이면 None)"""
+        if self.mode != 'on' or self.poke_cd > 0 or self.dead:
+            return None
+        hx, hy = self.hand()
+        dx, dy = mx - hx, my - hy
+        if abs(dx) > 1:
+            self.facing = 1 if dx > 0 else -1
+            hx, hy = self.hand()
+            dx, dy = mx - hx, my - hy
+        d = math.hypot(dx, dy) or 1
+        self.poke_dir = (dx / d, dy / d)
+        self.poke_t, self.poke_cd = POKE_TIME, POKE_COOLDOWN
+        reach = min(POKE_REACH, d)
+        return hx + self.poke_dir[0] * reach, hy + self.poke_dir[1] * reach
 
     def throw(self, mx, my):
         if not self.held:
@@ -304,17 +331,20 @@ class Pointer:
 
     # ---------------------------------------------------------------- 물리
     def update(self, dt, wm):
+        self.anim_t += dt
         self.invincible = max(0.0, self.invincible - dt)
         self.hurt_t = max(0.0, self.hurt_t - dt)
         self.kb -= self.kb * min(1.0, 8 * dt)
         if self.dead:
             self.left = self.right = self.up = self.down = False
         self.switch_cd = max(0.0, self.switch_cd - dt)
+        self.poke_t = max(0.0, self.poke_t - dt)
+        self.poke_cd = max(0.0, self.poke_cd - dt)
         self.eat_cd = max(0.0, self.eat_cd - dt)
         self.fail_t = max(0.0, self.fail_t - dt)
 
         visible = wm.visible()
-        if self.mode == 'on' and self.win not in visible:
+        if self.inside and self.win not in visible:
             self.force_out()
         if self.layer is not None and self.layer not in visible:
             self.layer = None
@@ -335,12 +365,15 @@ class Pointer:
         if self.climb(dt, wm, move):
             return
         self.vx = move * RUN_SPEED + self.kb
+        if self.mode == 'on' and not self.inside:
+            self.move_solid(dt, wm)
+            return
         prev_y = self.y
         self.x += self.vx * dt
         self.vy -= GRAVITY * dt
         self.y += self.vy * dt
 
-        if self.mode == 'on':
+        if self.inside:
             self.collide_inside(prev_y)
         else:
             self.collide_os(prev_y, wm)
@@ -355,12 +388,14 @@ class Pointer:
 
     def find_ladder(self, wm):
         """포인터 가운데가 닿아 있는 스크롤바. OFF에서는 앞 창에 덮이지 않은 것만"""
+        if self.mode == 'on' and not self.inside:
+            return None                 # 공격 모드에서 창은 벽이라 스크롤바에 닿지 않는다
         cx, cy = self.center()
-        wins = [self.win] if self.mode == 'on' else reversed(wm.visible())
+        wins = [self.win] if self.inside else reversed(wm.visible())
         for win in wins:
             for i, (l, b, w, h) in enumerate(win.app.ladders()):
                 if l - 14 <= cx <= l + w + 14 and b - PH / 2 <= cy <= b + h + PH / 2:
-                    if self.mode == 'on' or wm.hit(l + w / 2, min(cy, b + h - 1))[0] is win:
+                    if self.inside or wm.hit(l + w / 2, min(cy, b + h - 1))[0] is win:
                         return win, i
         return None
 
@@ -385,7 +420,7 @@ class Pointer:
             # 아래 끝을 지나면 놓고 떨어진다 (바로 밑 바닥에 선다)
             self.ladder = None
             self.vy = 0
-            if self.mode == 'on':
+            if self.inside:
                 self.collide_inside(self.y + 1)
             else:
                 self.collide_os(self.y + 1, wm)
@@ -419,6 +454,41 @@ class Pointer:
             self.ground = None
             self.set_anchor(None)
 
+    def move_solid(self, dt, wm):
+        """공격 모드 (창 밖): 보이는 창이 모두 단단한 벽이다. 가로, 세로를 나눠 밀어낸다"""
+        visible = wm.visible()
+        self.ghosts = {w for w in self.ghosts if w in visible and self.overlaps(w.rect())}
+        solids = [w for w in visible if w not in self.ghosts]
+        self.layer = visible[-1] if visible else None          # 모든 창보다 앞에 그린다
+        px = self.x
+        self.x = min(max(self.x + self.vx * dt, 0), W - PW)
+        for win in solids:
+            l, b, w, h = win.rect()
+            if self.overlaps((l, b, w, h)):
+                if px + PW <= l + 0.01:
+                    self.x = l - PW
+                elif px >= l + w - 0.01:
+                    self.x = l + w
+                else:
+                    self.x = px
+        py = self.y
+        self.vy -= GRAVITY * dt
+        self.y += self.vy * dt
+        self.ground = None
+        if self.y <= TASKBAR_H:
+            self.y, self.vy, self.ground = TASKBAR_H, 0, 'taskbar'
+        if self.y + PH > H:
+            self.y, self.vy = H - PH, min(self.vy, 0)
+        for win in solids:
+            l, b, w, h = win.rect()
+            if not self.overlaps((l, b, w, h)):
+                continue
+            if py >= b + h - 0.01:
+                self.y, self.vy, self.ground = b + h, 0, win
+            elif py + PH <= b + 0.01:
+                self.y, self.vy = b - PH, min(self.vy, 0)
+        self.set_anchor(self.ground if self.ground not in (None, 'taskbar') else None)
+
     def collide_inside(self, prev_y):
         l, b, w, h = self.win.client_rect()
         self.x = min(max(self.x, l), l + w - PW)
@@ -443,25 +513,33 @@ class Pointer:
             return 'x_x'
         return '#_#' if self.mode == 'on' else '@_@'
 
+    def anim_state(self):
+        if self.hurt_t > 0 or self.dead:
+            return 'hurt'
+        if self.poke_t > 0:
+            return 'poke'
+        if self.ladder:
+            return 'climb'
+        if self.ground is None:
+            return 'jump' if self.vy > 0 else 'fall'
+        return 'run' if self.left != self.right else 'idle'
+
     def draw(self):
         if self.invincible > 0 and not self.dead and int(self.invincible * 12) % 2:
             return                      # 무적 중 깜빡임
-        if self.mode == 'on':
+        if self.inside:
             gfx.push_clip(*self.win.client_rect())
         shake = math.sin(self.fail_t * 80) * 4 if self.fail_t > 0 else 0
-        x, y = self.x + shake, self.y
-        gfx.fill(x + 3, y - 3, PW, PH, (0, 0, 0, 60))
-        gfx.fill(x, y, PW, PH, WHITE)
-        gfx.frame(x, y, PW, PH, BLACK, 2)
-        if self.mode == 'on':
-            gfx.frame(x + 2, y + 2, PW - 4, PH - 4, ACCENT)
-        gfx.text(self.face(), x + PW / 2, y + PH * 0.42, 13, TEXT, align='center')
-        ex = x + PW / 2 + self.facing * (PW / 2 - 6)
-        gfx.fill(ex - 3, y + PH - 16, 6, 6, BLACK)            # 바라보는 쪽 표시
+        lunge = 0.0
+        if self.poke_t > 0:
+            lunge = 14 * math.sin(math.pi * (1 - self.poke_t / POKE_TIME))   # 앞으로 내질렀다 돌아온다
+        ox, oy = self.poke_dir[0] * lunge + shake, self.poke_dir[1] * lunge
+        sprites.pointer().draw(self.mode, FACES[self.face()], self.anim_state(), self.anim_t,
+                               self.x + PW / 2 + ox, self.y + oy, self.facing < 0)
         if self.held:
             hx, hy = self.hand()
-            draw_button(self.held, hx + shake + self.facing * 12, hy, 0.8)
-        if self.mode == 'on':
+            draw_button(self.held, hx + ox + self.facing * 12, hy + oy, 0.8)
+        if self.inside:
             gfx.pop_clip()
 
     def draw_hud(self):

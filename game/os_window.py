@@ -13,6 +13,9 @@ class OSWindow:
         self.state = 'normal'          # normal | max | min
         self.saved_state = 'normal'    # 최소화 직전 상태 (복원할 때 씀)
         self.torn = {}                 # 포인터가 뜯어 간 버튼 이름 → 다시 생길 때까지 남은 초
+        self.cracks = []               # 찔린 자리 (창 왼쪽 아래 기준 상대 좌표)
+        self.crack_t = 0.0             # 금이 아물 때까지 남은 초
+        self.hole = None               # 부서진 자리 (상대 x, y, 남은 초)
 
     @property
     def title(self):
@@ -63,6 +66,20 @@ class OSWindow:
                     return name, None
             return 'title', None
         return 'client', None
+
+    # ---------------------------------------------------------------- 찔리기
+    def crack(self, x, y):
+        """화면 (x, y)를 찔렸다. 금 간 횟수를 돌려준다"""
+        l, b, w, h = self.rect()
+        self.cracks.append((x - l, y - b))
+        self.crack_t = CRACK_HEAL
+        return len(self.cracks)
+
+    def shatter(self):
+        # 금이 다 차서 부서졌다: 마지막으로 찔린 자리에 구멍을 잠깐 남긴다
+        rx, ry = self.cracks[-1]
+        self.hole = (rx, ry, 1.2)
+        self.cracks = []
 
     # ---------------------------------------------------------------- 상태 바꾸기
     def toggle_max(self):
@@ -141,6 +158,40 @@ class OSWindow:
 
         if self.state == 'normal':
             gfx.frame(l, b, w, h, BORDER_ACTIVE if active else BORDER_INACTIVE)
+        self.draw_cracks(l, b)
+
+    def draw_cracks(self, l, b):
+        # 금: 찔린 자리에서 뻗는 꺾은선을 4px 도트로. 찔릴수록 길어지고 갈래가 는다
+        n = len(self.cracks)
+        ink = (32, 32, 32)
+        for rx, ry in self.cracks:
+            x, y = l + rx, b + ry
+            size = 12 + 8 * n
+            for k, (dx, dy) in enumerate(((1, 0.6), (-0.8, 0.9), (0.3, -1), (-1, -0.4))[:1 + n]):
+                mx, my = x + dx * size * 0.5 + (6 if k % 2 else -6), y + dy * size * 0.5
+                block_line(x, y, mx, my, ink)
+                block_line(mx, my, x + dx * size, y + dy * size, ink)
+            gfx.fill(snap(x) - 4, snap(y) - 4, 8, 8, ink)
+        if self.hole:
+            # 부서진 구멍: 들쭉날쭉한 검은 덩어리가 잠깐 남았다가 줄어든다
+            rx, ry, t = self.hole
+            x, y = snap(l + rx), snap(b + ry)
+            k = min(1.0, t / 0.4)
+            for dx, dy, r in ((0, 0, 20), (-12, 8, 12), (12, -8, 12), (8, 12, 8), (-12, -12, 8)):
+                r = int(r * k) // 4 * 4
+                if r:
+                    gfx.fill(x + dx - r, y + dy - r, 2 * r, 2 * r, (20, 20, 20))
+
+
+def snap(v):
+    return int(v) // 4 * 4
+
+
+def block_line(x0, y0, x1, y1, c):
+    """4px 도트로 찍은 선"""
+    n = max(1, int(max(abs(x1 - x0), abs(y1 - y0)) / 4))
+    for i in range(n + 1):
+        gfx.fill(snap(x0 + (x1 - x0) * i / n), snap(y0 + (y1 - y0) * i / n), 4, 4, c)
 
 
 class WindowManager:
@@ -314,6 +365,13 @@ class WindowManager:
     # ---------------------------------------------------------------- 그리기
     def update(self, dt):
         for win in self.windows:
+            if win.cracks:
+                win.crack_t -= dt
+                if win.crack_t <= 0:
+                    win.cracks = []
+            if win.hole:
+                rx, ry, t = win.hole
+                win.hole = (rx, ry, t - dt) if t > dt else None
             for name in list(win.torn):
                 win.torn[name] -= dt
                 if win.torn[name] <= 0:
