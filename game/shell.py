@@ -4,6 +4,7 @@ import apps
 import browser                  # apps.APPS['browser']를 채운다
 import paint                    # apps.APPS['paint']를 채운다
 import breaker                  # apps.APPS['breaker']를 채운다
+import photos
 from context_menu import ContextMenu
 
 wm = None          # play_mode가 init에서 넣어 준다
@@ -72,6 +73,8 @@ def open_node(node):
         open_key(node.app)
     elif node is fs.BREAKER:
         open_key('breaker')
+    elif getattr(node, 'picture', None) is not None:
+        photos.open_picture(wm, node)
     elif node.custom_icon in (None, 'text_file'):
         open_text(node)
     else:
