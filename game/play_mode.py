@@ -7,6 +7,7 @@ import gfx
 import fs
 import shell
 import level
+import toast
 from monsters import Blast, BugWorm, Popup
 from config import *
 from desktop import Desktop
@@ -48,6 +49,7 @@ def init():
     monsters[:] = level.spawn()
     bullets.clear()
     effects.clear()
+    toast.clear()
 
 
 def finish():
@@ -252,6 +254,7 @@ def update():
     for t in thrown:
         t.update(dt)
     update_world(dt)
+    toast.update(dt)
     thrown[:] = [t for t in thrown if not t.dead]
     # 침투 모드에서만 실제 마우스 커서를 숨긴다 (창이 닫혀 밖으로 밀려나도 다시 보이게)
     if (player.mode == 'on') != cursor_hidden:
@@ -351,6 +354,7 @@ def render():
     desktop.draw_drag()
     taskbar.draw(wm, start.open)
     player.draw_hud()
+    toast.draw()
     start.draw()
     if shell.menu:
         shell.menu.draw()
