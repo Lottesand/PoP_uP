@@ -22,6 +22,8 @@ attach_samples()
 wm = None          # play_mode가 init에서 넣어 준다
 menu = None        # 지금 열린 오른쪽 클릭 메뉴
 drag = None        # 탐색기 창에서 끌고 있는 항목 (노드, 누른 x, 누른 y) - 창들 위에 아이콘을 그린다
+on_player = None   # (노드, x, y) → 포인터 위에 놓였으면 장착하고 True. play_mode가 넣어 준다
+over_player = None  # (노드, x, y) → 포인터 위에 끌고 와서 장착할 수 있으면 True
 
 
 # ---------------------------------------------------------------- 끌어 놓기 (바탕화면 ⇄ 폴더 창)
@@ -53,6 +55,8 @@ def drop_target(mx, my, node):
 def drop(node, mx, my):
     """끌던 항목을 놓는다: 다른 폴더면 옮기고, 바탕 화면이면 놓은 칸에 둔다. 옮겼으면 True"""
     import desktop
+    if on_player is not None and on_player(node, mx, my):
+        return True                     # 그림 파일을 포인터 위에 놓으면 무기로 장착 (파일은 그 자리에 남는다)
     target, cell = drop_target(mx, my, node)
     if target is None:
         return False
@@ -66,6 +70,8 @@ def drop(node, mx, my):
 
 def drop_label(node, mx, my):
     """끌고 있는 동안 커서 옆 안내: '→ 바탕 화면(으)로 이동'"""
+    if over_player is not None and over_player(node, mx, my):
+        return '+ 포인터에게 무기로 장착'
     target, cell = drop_target(mx, my, node)
     if target is None or target is node.parent:
         return None

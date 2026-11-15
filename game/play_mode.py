@@ -51,6 +51,7 @@ def init():
     global desktop, taskbar, start, wm, player, thrown, spawner
     wm = WindowManager()
     shell.wm = wm
+    shell.on_player, shell.over_player = equip_drop, can_equip_drop
     shell.close_menu()
     desktop = Desktop()
     taskbar = Taskbar()
@@ -389,6 +390,29 @@ def heal_fx(amount, big=True):
     px, py = player.center()
     effects.append(Popup(player.win if player.inside else None, px, py + 52, '+%d' % amount, (60, 220, 90),
                          22 if big else 15))
+
+
+def can_equip_drop(node, mx, my):
+    """끌고 온 그림 파일이 포인터 몸 위(조금 넉넉하게)에 있는가"""
+    if getattr(node.resolve(), 'picture', None) is None or player.dead:
+        return False
+    return player.x - 20 <= mx <= player.x + 48 + 20 and player.y - 16 <= my <= player.y + 64 + 20
+
+
+def equip_drop(node, mx, my):
+    """그림 파일을 끌어다 포인터에게 놓으면 그 그림을 무기로 든다. 장착했으면 True"""
+    if not can_equip_drop(node, mx, my):
+        return False
+    picture = node.resolve().picture
+    player.take_weapon(picture)
+    layer = player.win if player.inside else player.layer
+    px, py = player.center()
+    effects.append(Ring(layer, px, py + 6, 46, picture.color, clip=player.inside))
+    effects.append(Spark(layer, px, py + 30, picture.color, 8, clip=player.inside))
+    effects.append(Popup(player.win if player.inside else None, px, py + 50, '무기 장착!', picture.color, 18))
+    section.hint('weapon', '그림 무기', 'Shift ON 공격 모드에서 좌클릭: 휘두르기',
+                 '우클릭: 던지기 (그림 파일을 다시 끌어다 놓으면 또 장착)')
+    return True
 
 
 def take_picture(mx, my):
