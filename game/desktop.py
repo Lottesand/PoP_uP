@@ -190,7 +190,10 @@ class Desktop:
             gfx.fill(l + 1, top - box_h, w - 2, box_h, (255, 255, 255, 40))
             gfx.frame(l + 1, top - box_h, w - 2, box_h, (255, 255, 255, 70))
         ix, ib = l + (w - 48) / 2, top - 4 - 48
-        gfx.icon(node.icon, 48, ix, ib, alpha)
+        if getattr(node, 'picture', None) is not None and alpha is None:
+            node.picture.draw_fit(ix, ib, 48, 48)           # 그림 파일은 미리 보기
+        else:
+            gfx.icon(node.icon, 48, ix, ib, alpha)
         if node.kind in (fs.LINK, fs.APP) and node.resolve().kind not in (fs.THIS_PC, fs.RECYCLE):
             gfx.shortcut_arrow(ix, ib)
         a = 255 if alpha is None else int(255 * alpha)

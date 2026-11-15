@@ -243,3 +243,39 @@ class ThrownDrawing:
                           self.spin, self.mirror)
         if self.win is not None:
             gfx.pop_clip()
+
+
+# ==================================================================== 예시 그림 (그림판에 안 그려도 주울 수 있는 무기)
+# 글자 → 그림판 팔레트 색. ' ' = 투명
+SAMPLE_COLORS = {
+    'r': (237, 28, 36), 'd': (136, 0, 21), 'o': (255, 127, 39), 'k': (0, 0, 0),
+    'b': (63, 72, 204), 'B': (0, 162, 232), 'g': (127, 127, 127),
+}
+SAMPLES = {
+    # 불꽃 창: 길쭉해서 창(찌르기), 빨강 · 주황이 가장 많아 불 속성
+    'flame_spear': [
+        '                          oo        ',
+        '                        oorro       ',
+        'kk  dddddddddddddddddd korrrrrrrrr  ',
+        'kkkkdddddddddddddddddddkrrrrrrrrrrrr',
+        'kk  dddddddddddddddddd korrrrrrrrr  ',
+        '                        oorro       ',
+        '                          oo        ',
+    ],
+    # 얼음 망치: 뭉툭해서 칼(휘두르기), 파랑이 가장 많아 얼음 속성. 세로 그림이라 위쪽(머리)이 끝
+    'ice_hammer': [
+        'bbbbbbbbbbbbbbbb',
+        'bBBBBBBBBBBBBBBb',
+        'bBBBBBBBBBBBBBBb',
+        'bBBBBBBBBBBBBBBb',
+        'bBBBBBBBBBBBBBBb',
+        'bBBBBBBBBBBBBBBb',
+        'bbbbbbbbbbbbbbbb',
+    ] + ['      gggg      '] * 13 + ['     kkkkkk     '] * 2,
+}
+
+
+def sample(name):
+    rows = SAMPLES[name]
+    width = max(len(r) for r in rows)
+    return Drawing([[SAMPLE_COLORS.get(ch) for ch in r.ljust(width)] for r in rows])

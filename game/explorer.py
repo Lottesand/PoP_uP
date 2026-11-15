@@ -334,7 +334,10 @@ class Explorer(App):
             self.item_box(node, *rect)
             self.draw_cuts(node, *rect)
             ix = cx + (CELL_W - 48) / 2
-            gfx.icon(node.icon, 48, ix, ct - 52)
+            if getattr(node, 'picture', None) is not None:
+                node.picture.draw_fit(ix, ct - 52, 48, 48)     # 그림 파일은 미리 보기
+            else:
+                gfx.icon(node.icon, 48, ix, ct - 52)
             if node.locked:
                 gfx.icon('lock', 16, ix + 34, ct - 52)
             if node.kind in (fs.LINK, fs.APP) and node.parent is not fs.QUICK_ACCESS:

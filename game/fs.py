@@ -151,8 +151,8 @@ BREAKER = Node('인터넷 차단기.exe', FILE, icon='exe')   # 구간 1 목표:
 DOCUMENTS = Node('문서', children=[
     Node('과제', children=[_txt('2D게임프로그래밍 기획서.txt', 'PoP_uP 기획서 초안'),
                          _txt('제출 목록.txt', '1차 발표 영상', '2차 발표 영상')]),
-    Node('사진 백업', children=[Node('IMG_0001.jpg', FILE, icon='image_file'),
-                            Node('IMG_0002.jpg', FILE, icon='image_file')]),
+    Node('사진 백업', children=[Node('불꽃 창.png', FILE, icon='image_file'),
+                            Node('얼음 망치.png', FILE, icon='image_file')]),
     Node('숨겨진 폴더', children=[Node('설정', children=[BREAKER])]),
     _txt('readme.txt', '이 PC의 주인은 자리를 비웠습니다.'),
     Node('USB 열쇠', FILE, icon='usb', locked=True),
@@ -176,6 +176,8 @@ ROOT = Node('내 PC', THIS_PC, children=[
     Node('USB 드라이브 (E:)', DRIVE, icon='usb', locked=True),
 ])
 TRASH = Node('휴지통', RECYCLE)
+# 예시 그림: 그림판에 안 그려도 사진 창에서 집어 쓸 수 있는 무기 (그림은 shell이 drawing.sample로 붙인다)
+SAMPLE_PICTURES = {'불꽃 창.png': 'flame_spear', '얼음 망치.png': 'ice_hammer'}
 for _n, _from in ((_txt('비밀번호 힌트.txt', '힌트: 처음 켠 날짜'), DOCUMENTS),
                   (Node('옛날 드라이버', children=[_txt('driver.inf')]), ROOT.children[7]),
                   (_txt('key_part_2.txt', '열쇠 조각 2/3'), DESKTOP_FOLDER)):

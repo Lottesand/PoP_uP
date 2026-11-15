@@ -5,7 +5,19 @@ import browser                  # apps.APPS['browser']를 채운다
 import paint                    # apps.APPS['paint']를 채운다
 import breaker                  # apps.APPS['breaker']를 채운다
 import photos
+import drawing
 from context_menu import ContextMenu
+
+
+def attach_samples():
+    """사진 백업 폴더의 예시 그림 파일에 실제 그림을 붙인다"""
+    backup = next(c for c in fs.DOCUMENTS.children if c.name == '사진 백업')
+    for node in backup.children:
+        if node.name in fs.SAMPLE_PICTURES:
+            node.picture = drawing.sample(fs.SAMPLE_PICTURES[node.name])
+
+
+attach_samples()
 
 wm = None          # play_mode가 init에서 넣어 준다
 menu = None        # 지금 열린 오른쪽 클릭 메뉴
