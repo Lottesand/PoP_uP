@@ -158,13 +158,19 @@ DOCUMENTS = Node('문서', children=[
     Node('USB 열쇠', FILE, icon='usb', locked=True),
 ])
 DESKTOP_FOLDER = Node('바탕 화면')
+# 구간 3: %appdata% (크롬 공룡을 잡으면 열린다). 가장 깊은 Local\Temp에 블랙홀
+TEMP = Node('Temp', children=[_txt('~tmp0001.tmp'), _txt('~tmp0002.tmp')])
+LOCAL = Node('Local', children=[Node('Google', children=[Node('Chrome', children=[Node('User Data')])]), TEMP])
+ROAMING = Node('Roaming', children=[Node('Microsoft', children=[Node('Windows')]), _txt('settings.ini', '[pointer]')])
+APPDATA = Node('AppData', children=[LOCAL, Node('LocalLow'), ROAMING], locked=True)
+WEB = Node('Chrome 페이지', FILE)       # 구간 2: Chrome 창 안에 사는 몬스터의 집 (탐색기에는 안 보인다)
 DOWNLOADS = Node('다운로드')
 PICTURES = Node('사진')
 ROOT = Node('내 PC', THIS_PC, children=[
     Node('3D 개체'), DOWNLOADS, Node('동영상'), DOCUMENTS, DESKTOP_FOLDER, PICTURES, Node('음악'),
     Node('로컬 디스크 (C:)', DRIVE, children=[
         Node('Program Files', children=[Node('Google', children=[Node('Chrome')]), Node('Microsoft VS Code')]),
-        Node('Users', children=[Node('Pointer', children=[Node('AppData', locked=True)])]),
+        Node('Users', children=[Node('Pointer', children=[APPDATA])]),
         Node('Windows', children=[Node('System32'), Node('Fonts')]),
     ]),
     Node('USB 드라이브 (E:)', DRIVE, icon='usb', locked=True),
