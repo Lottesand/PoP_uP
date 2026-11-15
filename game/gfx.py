@@ -18,6 +18,7 @@ _cursor_now = None
 
 def init():
     SDL_SetRenderDrawBlendMode(p2.renderer, SDL_BLENDMODE_BLEND)
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, b'0')     # 도트를 키울 때 번지지 않게 (가장 가까운 픽셀)
     for name, kind in (('arrow', SDL_SYSTEM_CURSOR_ARROW), ('we', SDL_SYSTEM_CURSOR_SIZEWE),
                        ('ns', SDL_SYSTEM_CURSOR_SIZENS), ('nwse', SDL_SYSTEM_CURSOR_SIZENWSE),
                        ('nesw', SDL_SYSTEM_CURSOR_SIZENESW), ('hand', SDL_SYSTEM_CURSOR_HAND),

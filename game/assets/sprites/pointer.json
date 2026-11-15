@@ -1,0 +1,21 @@
+{
+ "states": [
+  "idle",
+  "run",
+  "jump",
+  "fall",
+  "climb",
+  "hurt",
+  "poke"
+ ],
+ "cell": [
+  20,
+  22
+ ],
+ "frames": 12,
+ "fps": 12,
+ "origin": [
+  10,
+  20
+ ]
+}
