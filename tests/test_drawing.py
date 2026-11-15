@@ -52,6 +52,15 @@ check('photo backup has 2 sample weapons', set(samples) == {'불꽃 창.png', '�
 fire, ice = samples['불꽃 창.png'], samples['얼음 망치.png']
 check('sample 1: flame spear = fire spear', fire.shape == 'spear' and fire.element == 'fire')
 check('sample 2: ice hammer = ice blade', ice.shape == 'blade' and ice.element == 'ice')
+# 바탕 화면의 공룡 · 로고 그림 (원본 그림의 배경을 지워 도트로 줄인 것)
+desk = {n.name: n for n in fs.DESKTOP_FOLDER.children}
+dino, logo = desk['공룡.png'].picture, desk['로고.png'].picture
+check('desktop has the dino and logo pictures', dino is not None and logo is not None)
+check('background removed: corners are transparent', all(p.cells[y][x] is None for p in (dino, logo)
+                                                         for x, y in ((0, 0), (p.w - 1, 0), (0, p.h - 1))))
+mid = dino.cells[dino.h // 2]
+check('the dino keeps its white body inside the outline', any(c is not None and min(c) > 200 for c in mid))
+check('logo = ice (blue), dino = heavy', logo.element == 'ice' and dino.element == 'heavy')
 pm.shell.open_folder(backup); bwin = pm.wm.active
 bwin.x, bwin.y, bwin.w, bwin.h = 300, 300, 800, 460
 step(0.2)

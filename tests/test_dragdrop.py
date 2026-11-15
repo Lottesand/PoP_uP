@@ -129,16 +129,20 @@ for _ in range(10):
     pm.update()
 frame()
 D = pm.desktop
-icons = [n for n in D.items() if n.pos[0] == 0][:4]          # 첫 줄 위에서 4개
+icons = sorted((n for n in D.items() if n.pos[0] == 0), key=lambda n: n.pos[1])[:4]   # 첫 줄 위에서 4개
 l0, b0, w0, h0 = desktop.cell_rect(*icons[0].pos)
 l3, b3, w3, h3 = desktop.cell_rect(*icons[3].pos)
-pm.mouse_down(l0 + w0 + 40, b0 + h0 - 10)
+used = {n.pos for n in D.items()}
+free_col = next(c for c in range(1, desktop.COLS) if all((c, r) not in used for r in range(4)))
+sx = desktop.cell_rect(free_col, 0)[0] + 10                  # 그 줄들이 빈 열에서 시작해 첫 열까지 끈다
+pm.mouse_down(sx, b0 + h0 - 10)
 for k in range(1, 9):
-    pm.mouse_move(l0 + w0 + 40 - (w0) * k / 8, b0 + h0 - 10 - (b0 + h0 - b3 - 20) * k / 8)
+    pm.mouse_move(sx - (sx - l0 - w0 / 2) * k / 8, b0 + h0 - 10 - (b0 + h0 - b3 - 20) * k / 8)
 frame()
 screenshot.shot(os.path.join(OUT, 'band.png'))
 check('dragging on empty desktop draws a selection box', D.band_rect() is not None)
 check('the box selects every icon it touches', set(icons) <= set(D.picked))
+icons = list(D.picked)
 pm.mouse_up(*D.mouse)
 check('releasing ends the box but keeps the selection', D.band is None and set(icons) <= set(D.picked))
 # 선택한 아이콘을 하나 끌면 다 같이 움직인다
