@@ -27,7 +27,11 @@ def encounters():
         (find(docs, '사진 백업'), [('bug', 100), ('bug', 240), ('bug', 380), ('bug', 520)]),
         (find(docs, '숨겨진 폴더'), [('bomber', 400), ('caret', 180), ('bug', 560)]),
         (find(docs, '숨겨진 폴더', '설정'), [('caret', 460), ('bug', 220), ('bug', 340), ('bomber', 560)]),
+        (fs.BREAKER, BREAKER_BUGS),     # 인터넷 차단기.exe의 로그 상자 안
     ]
+
+
+BREAKER_BUGS = [('bug', 60), ('bug', 260), ('bug', 440), ('caret', 300)]
 
 
 def spawn():
@@ -80,13 +84,14 @@ def window_for(folder, wm):
 
 # ==================================================================== 구간 0~1 진행
 class Section:
-    """부팅 경고창 [확인] 밟기 → 파일 관리자 탐험 → 인터넷 차단기 끄기 → 클리어"""
+    """부팅 경고창 [확인] 밟기 → 파일 관리자 탐험 → 인터넷 차단기.exe의 버그 잡고 [켜기] → 클리어"""
 
     def __init__(self):
         self.state = 'warning'          # warning | explore | clear
         self.time = 0.0
         self.deaths = 0
         self.hints = set()
+        self.breaker_left = len(BREAKER_BUGS)     # 차단기 로그에 남은 버그
 
     def start(self, game):
         import apps
@@ -99,7 +104,7 @@ class Section:
     def begin(self):
         import toast
         self.state = 'explore'
-        toast.show('인터넷이 차단되어 있습니다', '문서 폴더 어딘가에 숨은 인터넷 차단기를', '찾아서 끄세요.')
+        toast.show('인터넷이 차단되어 있습니다', '문서 폴더 어딘가에 숨은 인터넷 차단기.exe를', '찾아서 실행하고 인터넷을 켜세요.')
         toast.show('탐색기', '마우스로 폴더를 더블클릭하면 들어갑니다.', '창을 끌어 발판을 만들 수 있습니다 (Shift OFF).')
 
     def hint(self, key, title, *lines):
@@ -109,6 +114,7 @@ class Section:
             toast.show(title, *lines)
 
     def update(self, dt, game):
+        self.watch_breaker(game)
         if self.state != 'explore':
             return
         self.time += dt
@@ -126,21 +132,45 @@ class Section:
                 self.hint('ladder', '높은 곳에 닿지 않나요?', 'W/S: 오른쪽 스크롤바를 사다리처럼 오르내리기')
         if p.hp <= 60:
             self.hint('heal', 'HP가 줄었습니다', 'Q: 들고 있는 버튼을 먹어 HP 12 회복 (8초마다)')
-        if p.inside and p.ground is not None and fs.BREAKER.custom_icon == 'breaker_on':
-            for node, (l, b, w, h) in getattr(p.win.app, 'items', []):
-                if node is fs.BREAKER and abs(p.y - (b + h)) < 1 and p.x + 42 > l and p.x + 6 < l + w:
-                    self.clear(game)
+        win = game.wm.find('breaker')
+        if win is not None and not win.app.ready:
+            self.hint('breaker', '로그 안에 버그가 숨어 있습니다', 'Shift로 차단기 창을 부수고 들어가 버그를 모두 잡으면',
+                      '[켜기] 단추가 살아납니다. 누르거나 밟으세요.')
+
+    def watch_breaker(self, game):
+        """차단기 창이 열려 있으면 버그 수를 세서 로그에 남기고, 다 잡으면 [켜기]를 살린다"""
+        win = game.wm.find('breaker')
+        left = sum(1 for m in game.monsters if m.folder is fs.BREAKER and not m.dead)
+        if win is None:
+            self.breaker_left = left
+            return
+        app = win.app
+        app.on_change = lambda on: self.set_online(game, on)
+        total = len(BREAKER_BUGS)
+        while self.breaker_left > left:
+            self.breaker_left -= 1
+            app.add_log('[제거] 버그 제거됨 (%d/%d)' % (total - self.breaker_left, total))
+        if left == 0 and not app.ready:
+            app.add_log('[알림] 버그가 모두 사라졌습니다. [켜기] 잠금 해제')
+        app.ready = left == 0
+
+    def set_online(self, game, on):
+        import apps
+        if on and self.state == 'explore':
+            self.clear(game)
+            return
+        apps.Browser.online = on
+        game.taskbar.online = on
 
     def clear(self, game):
         import apps
         import toast
-        fs.BREAKER.custom_icon = 'breaker_off'
         self.state = 'clear'
         apps.Browser.online = True
         game.taskbar.online = True
         toast.show('인터넷에 연결됨', '네트워크 연결이 복구되었습니다.', icon='browser')
         m, s = divmod(int(self.time), 60)
         game.wm.open(apps.MessageBox('구간 1 클리어', [
-            '인터넷 차단기를 껐습니다. 인터넷에 연결되었습니다.',
+            '인터넷 차단기를 해제했습니다. 인터넷에 연결되었습니다.',
             '걸린 시간 %d분 %02d초 · 블루스크린 %d번' % (m, s, self.deaths),
             '다음 구간: 웹 브라우저 (준비 중)'], 'info'))

@@ -221,6 +221,18 @@ def breaker(on=True):
     return img
 
 
+def exe():
+    # 실행 파일(.exe) 기본 아이콘: 파란 제목 표시줄이 달린 흰 창
+    img, d = canvas()
+    d.rectangle((20, 40, 236, 220), fill=(255, 255, 255), outline=(150, 156, 166), width=6)
+    d.rectangle((26, 46, 230, 84), fill=(0, 120, 215))
+    for x in (176, 200):
+        d.rectangle((x, 58, x + 14, 72), fill=(255, 255, 255))
+    for i, y in enumerate((112, 146, 180)):
+        d.rectangle((48, y, 208 - i * 40, y + 14), fill=(206, 212, 220))
+    return img
+
+
 def breaker_on():
     return breaker(True)
 
@@ -234,7 +246,7 @@ ICONS = {
     'recycle_bin': recycle_bin, 'recycle_bin_full': recycle_bin_full, 'browser': browser,
     'notepad': notepad, 'paint': paint, 'vscode': vscode, 'kakao': kakao, 'terminal': terminal,
     'usb': usb, 'text_file': text_file, 'image_file': image_file, 'drive': drive, 'lock': lock,
-    'windows_logo': windows_logo, 'breaker_on': breaker_on, 'breaker_off': breaker_off,
+    'windows_logo': windows_logo, 'breaker_on': breaker_on, 'breaker_off': breaker_off, 'exe': exe,
 }
 
 
