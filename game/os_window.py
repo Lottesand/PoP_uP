@@ -14,6 +14,8 @@ class OSWindow:
         self.state = 'normal'          # normal | max | min
         self.saved_state = 'normal'    # 최소화 직전 상태 (복원할 때 씀)
         self.torn = {}                 # 포인터가 뜯어 간 버튼 이름 → 다시 생길 때까지 남은 초
+        self.breach = 0.0              # 총으로 테두리를 부숴 열린 남은 초 (그동안 걸어 들어갈 수 있다)
+        self.exit = None               # 안쪽에서 총으로 부순 자리 (x, y, 남은 초): 걸어가면 깨고 나간다
         self.blocks = []               # 이번 프레임에 프로그램이 알린 집을 수 있는 UI 조각 (키, 사각형)
         self.torn_blocks = {}          # 뜯긴 UI 조각 키 → 다시 생길 때까지 남은 초
         self.torn_colors = {}          # 뜯긴 자리를 채울 바탕색
@@ -395,6 +397,10 @@ class WindowManager:
                 win.torn[name] -= dt
                 if win.torn[name] <= 0:
                     del win.torn[name]
+            win.breach = max(0.0, win.breach - dt)
+            if win.exit:
+                x, y, t = win.exit
+                win.exit = (x, y, t - dt) if t > dt else None
             for key in list(win.torn_blocks):
                 win.torn_blocks[key] -= dt
                 if win.torn_blocks[key] <= 0:

@@ -1,5 +1,5 @@
 # 디버그 건: VS Code 왼쪽 활동 표시줄의 [실행 및 디버그] 아이콘(재생 삼각형 + 벌레)을 뜯어서 얻는 원거리 무기.
-#   좌클릭: 빨간 중단점(●)을 쏜다 (6 데미지, 0.4초마다, 맞은 적 1.5초 결빙). 창 밖에서 쏘면 창 테두리에 금을 낸다.
+#   좌클릭: 빨간 중단점(●)을 쏜다 (6 데미지, 0.4초마다, 맞은 적 1.5초 결빙). 창 테두리를 세 번 맞히면 3초 동안 뚫린다.
 #   우클릭: F5 Run 대쉬 (약 400px, 지나가며 닿은 적 20 데미지 관통, 대쉬 중 무적, 쿨 4초)
 #   E: 버리기 (아이콘이 VS Code로 돌아간다)
 import math
@@ -99,6 +99,7 @@ class Shot:
         self.hits = []
         self.age = 0.0
         self.trail = []
+        self.wall = None                # 창 안에서 쏴서 벽(테두리)에 닿은 자리 → play_mode가 금을 낸다
 
     def rect(self):
         return self.x - 9, self.y - 9, 18, 18
@@ -125,6 +126,8 @@ class Shot:
         self.y += self.vy * dt
         l, b, w, h = self.bounds()
         if not (l <= self.x <= l + w and b <= self.y <= b + h) or self.age > 1.5:
+            if self.win is not None and self.age <= 1.5 and not self.dead:
+                self.wall = (min(max(self.x, l), l + w), min(max(self.y, b), b + h))
             self.dead = True
         if self.win is not None and self.win.state == 'min':
             self.dead = True
