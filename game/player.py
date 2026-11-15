@@ -86,15 +86,25 @@ class Thrown:
 
     @property
     def damage(self):
-        return DAMAGE[self.name]
+        return DAMAGE[self.name] if isinstance(self.name, str) else self.name.damage
+
+    @property
+    def kind(self):
+        return self.name if isinstance(self.name, str) else 'block'
 
     def rect(self):
+        if not isinstance(self.name, str):
+            k = self.name.fit(60, 40)
+            w, h = max(20, self.name.w * k), max(14, self.name.h * k)
+            return self.x - w / 2, self.y - h / 2, w, h
         return self.x - 15, self.y - 11, 30, 22
 
     def struck(self, monster):
         """몬스터를 맞혔다. 무기마다 계속 날아갈지 정한다"""
         self.hits.append(monster)
-        if self.name == 'min':
+        if not isinstance(self.name, str):
+            self.dead = len(self.hits) >= self.name.pierce   # 뜯은 UI 조각: 큰 조각은 두 마리까지
+        elif self.name == 'min':
             self.dead = True
         elif self.name == 'close' and len(self.hits) >= PIERCE:
             self.dead = True
@@ -139,9 +149,17 @@ class Thrown:
             gfx.fill(int(x) // 4 * 4 - s // 2, int(y) // 4 * 4 - s // 2, s, s,
                      (CLOSE_RED if self.name == 'close' else (180, 180, 180)) + (150 - i * 45,))
         spin = abs(math.cos(self.age * 22))           # 동전처럼 빙글빙글 돈다
-        draw_button(self.name, self.x, self.y, 1.0, max(0.2, spin))
+        draw_held(self.name, self.x, self.y, 1.0, max(0.2, spin))
         if self.win is not None:
             gfx.pop_clip()
+
+
+def draw_held(held, cx, cy, scale=1.0, xscale=1.0, max_w=60, max_h=40):
+    """손에 든 것: 창 버튼 이름(str) 또는 뜯은 UI 조각(uiblocks.UIBlock)"""
+    if isinstance(held, str):
+        draw_button(held, cx, cy, scale, xscale)
+    else:
+        held.draw(cx, cy, scale * held.fit(max_w, max_h), xscale)
 
 
 def draw_button(name, cx, cy, scale=1.0, xscale=1.0):
@@ -314,6 +332,24 @@ class Pointer:
                 self.held = name
                 return True
         return False
+
+    def grab_block(self, mx, my):
+        """창 안에서 빈손으로 UI 조각을 좌클릭하면 뜯어 든다 (탐색 창 줄, 리본 탭, 툴바 단추, 메뉴 ...)"""
+        import uiblocks
+        if self.mode != 'on' or self.held or self.weapon is not None or not self.inside or self.dead:
+            return False
+        cl, cb, cw, ch = self.win.client_rect()
+        if not (cl + 6 <= mx <= cl + cw - 6 and cb + 6 <= my <= cb + ch - 6):
+            return False                # 가장자리는 테두리를 찔러 나가는 자리
+        hit = uiblocks.block_at(self.win, mx, my)
+        if hit is None:
+            return False
+        key, (l, b, w, h) = hit
+        cx, cy = self.center()
+        if math.hypot(min(max(cx, l), l + w) - cx, min(max(cy, b), b + h) - cy) > GRAB_RANGE:
+            return False
+        self.held = uiblocks.tear(self.win, key, (l, b, w, h))
+        return True
 
     def hand(self):
         return self.x + PW / 2 + self.facing * 18, self.y + PH - 12
@@ -834,7 +870,7 @@ class Pointer:
                                self.x + PW / 2 + ox, self.y + oy, self.facing < 0)
         if self.held:
             hx, hy = self.hand()
-            draw_button(self.held, hx + ox + self.facing * 12, hy + oy, 0.8)
+            draw_held(self.held, hx + ox + self.facing * 12, hy + oy, 0.8)
         if self.has('drawing'):
             self.draw_swing_fx()
             hx, hy, a = self.weapon_pose()
@@ -858,7 +894,7 @@ class Pointer:
         sx = l + 238
         gfx.frame(sx, b, 34, 22, (200, 200, 200))
         if self.held:
-            draw_button(self.held, sx + 17, b + 11, 0.85)
+            draw_held(self.held, sx + 17, b + 11, 0.85, max_w=34, max_h=24)
         if self.weapon is not None:
             # 손 칸 왼쪽 위에 그림 무기 칸
             gfx.fill(sx - 2, b + 30, 38, 38, (0, 0, 0, 140))

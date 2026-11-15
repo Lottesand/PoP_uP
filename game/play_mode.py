@@ -11,6 +11,7 @@ import shell
 import level
 import toast
 import textbox
+import uiblocks
 from monsters import BugWorm, Popup
 from fx import PokeTrail, Spark, Ring, Mote, ElementBurst
 from config import *
@@ -124,7 +125,7 @@ def mouse_down(mx, my):
     now = get_time()
     textbox.set_focus(None)            # 입력란을 다시 누르면 그 프로그램이 다시 잡는다
     if player.mode == 'on':
-        if not player.grab(mx, my, wm) and not take_picture(mx, my):
+        if not player.grab(mx, my, wm) and not take_picture(mx, my) and not grab_block(mx, my):
             poke(mx, my)
         return
     if menu_click(mx, my):
@@ -351,6 +352,23 @@ def impact(stop, shake, amp):
     shake_amp = max(shake_amp if shake_t > 0 else 0, amp)
 
 
+def grab_block(mx, my):
+    """빈손이면 창 안 UI 조각 뜯기. 커서 밑에 몬스터가 있으면 뜯지 않고 찌른다"""
+    if not player.inside:
+        return False
+    for m in monsters:
+        if m.win is player.win and not m.dead:
+            l, b, w, h = m.rect()
+            if l - 16 <= mx <= l + w + 16 and b - 16 <= my <= b + h + 16:
+                return False
+    if not player.grab_block(mx, my):
+        return False
+    effects.append(Spark(player.win, mx, my, (200, 200, 200), 6))
+    section.hint('block', 'UI 조각을 뜯었습니다', '어느 프로그램이든 단추 · 메뉴 · 탭 같은 조각은 뜯어 들 수 있습니다.',
+                 '우클릭: 던지기 (클수록 아픔)   Q: 먹어서 HP 회복')
+    return True
+
+
 def take_picture(mx, my):
     """특수 무기 집기: 사진 창의 그림, VS Code의 [실행 및 디버그] 아이콘 (창 안에서 좌클릭)"""
     if not player.inside:
@@ -541,7 +559,7 @@ def fight():
                     if t.name == 'drawing':
                         effects.append(ElementBurst(m.win, *m.center(), t.drawing.element, t.drawing.color, True))
                 else:
-                    m.hit(t.damage, t.name, t.x)
+                    m.hit(t.damage, getattr(t, 'kind', t.name), t.x)
                 t.struck(m)
                 mx, my = m.center()
                 heavy = t.name == 'close'
@@ -598,8 +616,12 @@ def render():
         # SDL 뷰포트는 음수 위치를 못 받아서, 0~진폭 사이로만 밀고 드러난 가장자리는 검게 둔다
         amp = max(1, int(shake_amp * min(1.0, shake_t / 0.2)))
         gfx.fill(0, 0, W, H, BLACK)
-        SDL_RenderSetViewport(pico2d.pico2d.renderer, SDL_Rect(random.randint(0, amp), random.randint(0, amp), W, H))
+        ox, oy = random.randint(0, amp), random.randint(0, amp)
+        SDL_RenderSetViewport(pico2d.pico2d.renderer, SDL_Rect(ox, oy, W, H))
+    else:
+        ox = oy = 0
     draw_scene()
+    uiblocks.capture_pending(ox, oy)        # 이번 프레임에 뜯은 UI 조각의 모습을 떠 둔다
     SDL_RenderSetViewport(pico2d.pico2d.renderer, None)
 
 

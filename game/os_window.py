@@ -1,6 +1,7 @@
 # 윈도우 10 창 (OSWindow)과 창 관리자 (WindowManager)
 # 창 사각형은 (left, bottom, width, height). 제목 표시줄은 창의 맨 위 TITLE_H 높이.
 import gfx
+import uiblocks
 from config import *
 
 MIN, MAX, RESTORE, CLOSE = '\uE921', '\uE922', '\uE923', '\uE8BB'
@@ -13,6 +14,9 @@ class OSWindow:
         self.state = 'normal'          # normal | max | min
         self.saved_state = 'normal'    # 최소화 직전 상태 (복원할 때 씀)
         self.torn = {}                 # 포인터가 뜯어 간 버튼 이름 → 다시 생길 때까지 남은 초
+        self.blocks = []               # 이번 프레임에 프로그램이 알린 집을 수 있는 UI 조각 (키, 사각형)
+        self.torn_blocks = {}          # 뜯긴 UI 조각 키 → 다시 생길 때까지 남은 초
+        self.torn_colors = {}          # 뜯긴 자리를 채울 바탕색
         self.cracks = []               # 찔린 자리 (창 왼쪽 아래 기준 상대 좌표)
         self.crack_t = 0.0             # 금이 아물 때까지 남은 초
         self.hole = None               # 부서진 자리 (상대 x, y, 남은 초)
@@ -127,7 +131,10 @@ class OSWindow:
 
         cl, cb, cw, ch = self.client_rect()
         gfx.push_clip(cl, cb, cw, ch)
+        uiblocks.current = []
         self.app.draw(cl, cb, cw, ch, active)
+        self.blocks, uiblocks.current = uiblocks.current, None
+        uiblocks.draw_holes(self)
         gfx.pop_clip()
 
         # 제목 표시줄
@@ -350,6 +357,8 @@ class WindowManager:
             self.last_title_click = (win, now)
             self.drag = ('move', win, None, (mx, my), start)
         elif kind == 'client':
+            if uiblocks.torn_at(win, mx, my):
+                return True                 # 뜯겨 나간 단추는 누를 수 없다
             win.app.mouse_down(mx, my, now)
             self.capture = win
         return True
@@ -386,6 +395,11 @@ class WindowManager:
                 win.torn[name] -= dt
                 if win.torn[name] <= 0:
                     del win.torn[name]
+            for key in list(win.torn_blocks):
+                win.torn_blocks[key] -= dt
+                if win.torn_blocks[key] <= 0:
+                    del win.torn_blocks[key]
+                    win.torn_colors.pop(key, None)
 
     def draw(self, after=None):
         """after(win): 창 하나를 그린 직후 그 창 층에 있는 것(포인터 등)을 그린다"""
