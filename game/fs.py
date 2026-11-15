@@ -147,12 +147,13 @@ def _txt(name, *lines):
     return Node(name, FILE, lines=lines)
 
 
+BREAKER = Node('인터넷 차단기', FILE, icon='breaker_on')   # 구간 1 목표: 창 안에서 밟아 끈다
 DOCUMENTS = Node('문서', children=[
     Node('과제', children=[_txt('2D게임프로그래밍 기획서.txt', 'PoP_uP 기획서 초안'),
                          _txt('제출 목록.txt', '1차 발표 영상', '2차 발표 영상')]),
     Node('사진 백업', children=[Node('IMG_0001.jpg', FILE, icon='image_file'),
                             Node('IMG_0002.jpg', FILE, icon='image_file')]),
-    Node('숨겨진 폴더', children=[Node('설정', children=[_txt('인터넷 차단기.txt', '[차단기]', '상태 = 켜짐')])]),
+    Node('숨겨진 폴더', children=[Node('설정', children=[BREAKER])]),
     _txt('readme.txt', '이 PC의 주인은 자리를 비웠습니다.'),
     Node('USB 열쇠', FILE, icon='usb', locked=True),
 ])

@@ -67,6 +67,11 @@ def open_node(node):
         open_folder(node)
     elif node.kind == fs.APP:
         open_key(node.app)
+    elif node is fs.BREAKER:
+        state = '꺼져' if node.custom_icon == 'breaker_off' else '켜져'
+        wm.open(apps.MessageBox('인터넷 차단기', ['차단기가 %s 있습니다.' % state, '',
+                                               '마우스로는 움직이지 않습니다. Shift로 이 폴더 창 안에 들어가서',
+                                               '차단기 위에 올라서면 내려갑니다.'], 'warning'))
     elif node.custom_icon in (None, 'text_file'):
         open_text(node)
     else:

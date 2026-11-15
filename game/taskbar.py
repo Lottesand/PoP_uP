@@ -15,6 +15,7 @@ class Taskbar:
         self.hover = None
         self.pressed = None
         self.usb_locked = True
+        self.online = False
 
     def contains(self, mx, my):
         return my < TASKBAR_H
@@ -86,7 +87,7 @@ class Taskbar:
                     gfx.text('가', x + w / 2, cy, 13, WHITE, align='center')
                 else:
                     gfx.symbol(glyph, x + w / 2, cy, 15 if name != 'chevron' else 10, WHITE)
-                if name == 'network':
+                if name == 'network' and not self.online:
                     gfx.fill(x + w / 2 + 2, cy - 11, 9, 9, (255, 185, 0))
                     gfx.text('!', x + w / 2 + 6, cy - 7, 9, BLACK, align='center')
                 if name == 'usb' and self.usb_locked:

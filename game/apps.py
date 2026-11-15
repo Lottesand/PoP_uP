@@ -184,8 +184,35 @@ class Browser(App):
     group = 'browser'
     key, title, icon = 'browser', '새 탭 - Chrome', 'browser'
     size = (1000, 640)
+    online = False                      # 구간 1에서 인터넷 차단기를 끄면 True
 
     def draw(self, l, b, w, h, active):
+        if self.online:
+            self.draw_online(l, b, w, h, active)
+        else:
+            self.draw_offline(l, b, w, h, active)
+
+    def draw_online(self, l, b, w, h, active):
+        top = b + h
+        gfx.fill(l, b, w, h, WHITE)
+        gfx.fill(l, top - 34, w, 34, (222, 225, 230) if active else (232, 234, 237))
+        gfx.fill(l + 8, top - 34, 230, 28, WHITE)
+        gfx.icon('browser', 16, l + 20, top - 28)
+        gfx.text('새 탭', l + 44, top - 20, 12)
+        y = top - 34 - 38
+        gfx.fill(l + 118, y + 5, w - 170, 28, (241, 243, 244))
+        gfx.text('Google에서 검색하거나 URL을 입력하세요', l + 140, y + 19, 14, (95, 99, 104))
+        gfx.line(l, y, l + w, y, (218, 220, 224))
+        cx, cy = l + w / 2, b + h * 0.58
+        x = cx - 130
+        for ch, c in zip('Google', ((66, 133, 244), (234, 67, 53), (251, 188, 5), (66, 133, 244), (52, 168, 83),
+                                    (234, 67, 53))):
+            x += gfx.text(ch, x, cy, 64, c, FONT_BOLD)
+        gfx.fill(cx - 280, cy - 96, 560, 44, WHITE)
+        gfx.frame(cx - 280, cy - 96, 560, 44, (223, 225, 229))
+        gfx.symbol(G_SEARCH, cx - 256, cy - 74, 14, (154, 160, 166))
+
+    def draw_offline(self, l, b, w, h, active):
         top = b + h
         gfx.fill(l, b, w, h, WHITE)
         # 탭 줄
