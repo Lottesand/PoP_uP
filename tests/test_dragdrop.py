@@ -89,6 +89,38 @@ usb, x, y = item_center(win, 'USB 열쇠')
 drag(x, y, 300, 700)
 check('locked items cannot be dragged out', usb.parent is fs.DOCUMENTS)
 screenshot.shot(os.path.join(OUT, 'dnd_after.png'))
+# ---------------------------------------------------------------- 그림 파일을 포인터에게 끌어다 놓으면 장착
+P = pm.player
+for w in list(pm.wm.windows):
+    pm.wm.close(w)
+backup = level.find(fs.DOCUMENTS, '사진 백업')
+shell.open_folder(backup); bw = pm.wm.active
+bw.x, bw.y, bw.w, bw.h = 700, 300, 800, 460
+P.x, P.y = 300, TASKBAR_H
+for _ in range(20):
+    pm.update()
+frame()
+spear, x, y = item_center(bw, '불꽃 창.png')
+px, py = P.center()
+label = drag(x, y, px, py, 'dnd_equip.png')
+check('dragging a picture over the pointer says it will equip', label == '+ 포인터에게 무기로 장착')
+check('dropping a picture on the pointer equips it as a weapon', P.weapon is spear.picture)
+check('the picture file stays where it was', spear.parent is backup)
+# 바탕 화면의 그림 아이콘도
+hammer = next(n for n in backup.children if n.name == '얼음 망치.png')
+fs.move(hammer, fs.DESKTOP_FOLDER); hammer.pos = None
+frame()
+hx, hy = desk_center(hammer)
+pm.desktop.last_click = (None, -1.0)
+drag(hx, hy, px, py)
+check('desktop picture icon dropped on the pointer swaps the weapon', P.weapon is hammer.picture
+      and hammer.parent is fs.DESKTOP_FOLDER)
+# 그림이 아닌 파일은 장착되지 않고 그냥 바탕 화면으로
+note = next(n for n in fs.DESKTOP_FOLDER.children if n.name == '탈출 계획.txt')
+nx, ny = desk_center(note)
+pm.desktop.last_click = (None, -1.0)
+label = drag(nx, ny, px, py)
+check('non-picture files are not equipped', P.weapon is hammer.picture and label != '+ 포인터에게 무기로 장착')
 close_canvas()
 print('%d/%d passed' % (sum(ok), len(ok)))
 sys.exit(0 if all(ok) else 1)
