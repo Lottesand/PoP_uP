@@ -3,6 +3,7 @@
 import math
 import random
 import gfx
+import sprites
 from config import *
 
 GRAVITY = 2400
@@ -10,6 +11,7 @@ GRAVITY = 2400
 
 class Monster:
     w, h = 40, 40
+    SHEET = None                    # game/assets/sprites/<이름>.png 도트 시트
     max_hp = 20
     contact_damage = 10
 
@@ -24,6 +26,7 @@ class Monster:
         self.dead = False
         self.facing = -1
         self.on_ground = False
+        self.anim_t = 0.0
 
     # ---------------------------------------------------------------- 좌표
     def area(self):
@@ -51,6 +54,7 @@ class Monster:
     # ---------------------------------------------------------------- 움직임
     def update(self, dt, game):
         self.flash = max(0.0, self.flash - dt)
+        self.anim_t += dt
         if self.stun > 0:
             self.stun -= dt
             self.vx *= 0.85
@@ -87,7 +91,7 @@ class Monster:
 
     def sees(self, player, reach_x, reach_y=120):
         """같은 창 안에 들어와 있는 포인터가 가까이 있는가"""
-        if player.mode != 'on' or player.win is not self.win or player.dead:
+        if player.win is not self.win or player.dead:
             return False
         px, py = player.center()
         cx, cy = self.center()
@@ -96,8 +100,8 @@ class Monster:
     # ---------------------------------------------------------------- 그리기
     def draw(self):
         gfx.push_clip(*self.area())
-        self.draw_body(*self.rect())
         x, y, w, h = self.rect()
+        sprites.char(self.SHEET).draw(self.anim_state(), self.anim_t, x + w / 2, y, self.flip())
         if self.hp < self.max_hp:
             gfx.fill(x, y + h + 6, w, 4, (60, 60, 60))
             gfx.fill(x, y + h + 6, w * max(0, self.hp) / self.max_hp, 4, CLOSE_RED)
@@ -105,63 +109,108 @@ class Monster:
             gfx.text('z', x + w - 4, y + h + 14 + 4 * math.sin(self.stun * 10), 12, ACCENT, FONT_BOLD)
         gfx.pop_clip()
 
-    def draw_body(self, x, y, w, h):
-        gfx.fill(x, y, w, h, (200, 60, 60))
+    def anim_state(self):
+        return 'stun'
+
+    def flip(self):
+        return False
+
+    def common_state(self):
+        if self.flash > 0:
+            return 'hurt'
+        if self.stun > 0:
+            return 'stun'
+        return None
 
 
 # ==================================================================== 버그 벌레: 근거리 기습
 class BugWorm(Monster):
-    w, h = 44, 22
+    """위에서 내려다본 것처럼 중력 없이 사방으로 기어 다닌다. 같은 창 안의 포인터를 향해 천천히 몰려온다"""
+    w, h = 44, 44
+    SHEET = 'bug'
     max_hp = 20
     contact_damage = 10
-    PATROL, DASH, REST = 70, 330, 0
+    CHASE, WANDER = 75, 35          # 쫓을 때 / 어슬렁거릴 때 속도
+    SPREAD = 40                     # 다른 버그와 이만큼은 떨어지려 한다
 
-    def __init__(self, folder, rx, ry=0.0):
-        super().__init__(folder, rx, ry)
-        self.state, self.timer = 'patrol', random.uniform(0.5, 2.0)
-        self.vx = -self.PATROL
+    def __init__(self, folder, rx, ry=None):
+        super().__init__(folder, rx, random.uniform(0, 300) if ry is None else ry)
+        self.heading = random.uniform(0, math.pi * 2)
+        self.bump = 0.0             # 튕겨 나가는 중 (남은 초)
 
     def think(self, dt, game):
-        self.timer -= dt
-        if self.state == 'patrol':
-            if self.vx == 0:
-                self.vx = self.facing * self.PATROL
-            if self.on_ground and self.timer <= 0 and self.sees(game.player, 340):
-                px, py = game.player.center()
-                self.facing = 1 if px > self.center()[0] else -1
-                self.state, self.timer = 'dash', 0.8
-                self.vx = self.facing * self.DASH
-                self.vy = 260
-            elif self.timer <= 0:
-                self.timer = random.uniform(1.0, 2.5)
-                self.facing = -self.facing
-                self.vx = self.facing * self.PATROL
-        elif self.state == 'dash':
-            if self.timer <= 0:
-                self.state, self.timer = 'rest', 0.6
-                self.vx = 0
-        elif self.state == 'rest' and self.timer <= 0:
-            self.state, self.timer = 'patrol', 0.4
-            self.vx = self.facing * self.PATROL
+        if self.bump > 0:
+            self.bump -= dt
+            return
+        p = game.player
+        cx, cy = self.center()
+        if p.win is self.win and not p.dead:
+            px, py = p.center()
+            want = math.atan2(py - cy, px - cx)
+            speed = self.CHASE
+        else:
+            want = self.heading + random.uniform(-1.2, 1.2) * dt * 3
+            speed = self.WANDER
+        # 방향을 천천히 튼다 (홱 돌지 않고 기어가는 느낌)
+        diff = (want - self.heading + math.pi) % (math.pi * 2) - math.pi
+        self.heading += max(-4 * dt, min(4 * dt, diff))
+        vx, vy = math.cos(self.heading) * speed, math.sin(self.heading) * speed
+        # 다른 버그와 겹치지 않게 살짝 밀어낸다
+        for m in game.monsters:
+            if m is not self and m.win is self.win and isinstance(m, BugWorm):
+                mx, my = m.center()
+                d = math.hypot(cx - mx, cy - my)
+                if 0 < d < self.SPREAD:
+                    vx += (cx - mx) / d * 60
+                    vy += (cy - my) / d * 60
+        self.vx, self.vy = vx, vy
 
-    def bounce(self):
-        # 포인터에 부딪히면 튕겨 나간다
-        self.vx = -self.facing * 200
-        self.vy = 300
-        self.state, self.timer = 'rest', 0.7
+    def physics(self, dt, game):
+        l, b, w, h = self.area()
+        if self.stun > 0:
+            self.vy *= 0.85
+        self.rx += self.vx * dt
+        self.ry += self.vy * dt
+        if not 0 <= self.rx <= w - self.w:
+            self.rx = min(max(self.rx, 0), w - self.w)
+            self.heading = math.pi - self.heading
+        if not 0 <= self.ry <= h - self.h:
+            self.ry = min(max(self.ry, 0), h - self.h)
+            self.heading = -self.heading
 
-    def draw_body(self, x, y, w, h):
-        body = WHITE if self.flash > 0 else (60, 160, 40)
-        for i in range(3):
-            lx = x + 10 + i * 12
-            leg = 3 if int((self.rx + i * 7) / 6) % 2 else -3
-            gfx.line(lx, y + 4, lx + leg, y - 1, (30, 70, 20))
-        gfx.fill(x + 4, y + 3, w - 8, h - 5, body)
-        gfx.frame(x + 4, y + 3, w - 8, h - 5, (30, 90, 20))
-        hx = x + w - 10 if self.facing > 0 else x
-        gfx.fill(hx, y + 6, 10, h - 8, (40, 110, 30) if self.flash <= 0 else WHITE)
-        gfx.fill(hx + (6 if self.facing > 0 else 2), y + h - 8, 2, 2, BLACK)
-        gfx.line(hx + 5, y + h - 2, hx + 5 + self.facing * 6, y + h + 4, (30, 70, 20))
+    def hit(self, damage, kind, from_x):
+        super().hit(damage, kind, from_x)
+        self.vy = 0
+        self.bump = 0.25
+
+    def anim_state(self):
+        return self.common_state() or 'crawl'
+
+    def angle(self):
+        """시트는 머리가 위(+y)를 본다. 기어가는 쪽(상하좌우 네 방향 중 가까운 쪽)으로 돌려 그린다.
+        비스듬히 돌리면 도트가 깨져서 90도 단위로만 돌린다"""
+        a = math.atan2(self.vy, self.vx) if (self.vx or self.vy) else self.heading
+        return round(a / (math.pi / 2)) * (math.pi / 2) - math.pi / 2
+
+    def draw(self):
+        gfx.push_clip(*self.area())
+        x, y, w, h = self.rect()
+        sprites.char(self.SHEET).draw_rotated(self.anim_state(), self.anim_t, x + w / 2, y + h / 2, self.angle())
+        if self.hp < self.max_hp:
+            gfx.fill(x, y + h + 6, w, 4, (60, 60, 60))
+            gfx.fill(x, y + h + 6, w * max(0, self.hp) / self.max_hp, 4, CLOSE_RED)
+        gfx.pop_clip()
+
+    def burst_in(self, edge):
+        """창 가장자리 틈에서 기어 나온다. edge: left / right / top / bottom"""
+        self.heading = {'left': 0, 'right': math.pi, 'bottom': math.pi / 2, 'top': -math.pi / 2}[edge]
+
+    def bounce(self, from_xy):
+        # 포인터에 부딪히면 반대쪽으로 튕겨 나간다
+        cx, cy = self.center()
+        a = math.atan2(cy - from_xy[1], cx - from_xy[0])
+        self.vx, self.vy = math.cos(a) * 260, math.sin(a) * 260
+        self.bump = 0.45
 
 
 # ==================================================================== 캐럿 ( | ): 숫자탄 사격
@@ -200,7 +249,8 @@ class Digit:
 
 
 class Caret(Monster):
-    w, h = 12, 46
+    w, h = 28, 52
+    SHEET = 'caret'
     max_hp = 30
     contact_damage = 5
     PERIOD, AIM = 1.5, 0.5
@@ -210,9 +260,11 @@ class Caret(Monster):
         self.timer = random.uniform(0.6, self.PERIOD)
         self.aiming = False
         self.home = rx
+        self.recoil = 0.0
 
     def think(self, dt, game):
         self.timer -= dt
+        self.recoil = max(0.0, self.recoil - dt)
         # 발판 위에서 좌우로 조금씩
         if abs(self.rx - self.home) > 30:
             self.vx = -math.copysign(30, self.rx - self.home)
@@ -229,18 +281,21 @@ class Caret(Monster):
             cx, cy = self.center()
             px, py = game.player.center()
             game.bullets.append(Digit(self.win, cx, cy + 10, px, py))
+            self.recoil = 0.2
 
-    def draw_body(self, x, y, w, h):
-        blink = self.aiming and int(self.timer * 16) % 2
-        c = WHITE if self.flash > 0 else (CLOSE_RED if blink else (20, 20, 20))
-        gfx.fill(x + 4, y, 4, h, c)
-        gfx.fill(x, y + h - 3, w, 3, c)
-        gfx.fill(x, y, w, 3, c)
+    def anim_state(self):
+        if self.common_state():
+            return self.common_state()
+        if self.aiming:
+            return 'aim'
+        return 'shoot' if self.recoil > 0 else 'idle'
+
 
 
 # ==================================================================== 윈도우 로고: 다가와서 자폭
 class Bomber(Monster):
-    w, h = 40, 40
+    w, h = 44, 52
+    SHEET = 'winlogo'
     max_hp = 15
     contact_damage = 0
     SENSE, CHASE, WANDER = 250, 200, 60
@@ -256,6 +311,17 @@ class Bomber(Monster):
         super().hit(damage, kind, from_x)
         if kind == 'min':
             self.state, self.fuse = 'chase', 0.0       # 최소화 버튼에 맞으면 카운트다운 처음부터
+
+    def anim_state(self):
+        return self.common_state() or {'wander': 'walk', 'chase': 'chase', 'count': 'count'}[self.state]
+
+    def draw(self):
+        super().draw()
+        if self.state == 'count':
+            x, y, w, h = self.rect()
+            gfx.push_clip(*self.area())
+            gfx.text(str(math.ceil(self.fuse)), x + w / 2, y + h + 16, 18, CLOSE_RED, FONT_BOLD, align='center')
+            gfx.pop_clip()
 
     def think(self, dt, game):
         p = game.player
@@ -281,35 +347,6 @@ class Bomber(Monster):
                 self.dead = True
                 game.explode(self.win, *self.center(), self.RADIUS, self.BLAST)
 
-    def draw_body(self, x, y, w, h):
-        hot = self.state == 'count' and int(self.fuse * 8) % 2
-        c = WHITE if self.flash > 0 else ((255, 90, 60) if hot else ACCENT)
-        g = 3
-        half = (w - g) / 2
-        for dx, dy in ((0, 0), (half + g, 0), (0, half + g), (half + g, half + g)):
-            gfx.fill(x + dx, y + dy, half, half, c)
-        if self.state == 'count':
-            gfx.text(str(math.ceil(self.fuse)), x + w / 2, y + h + 16, 18, CLOSE_RED, FONT_BOLD, align='center')
-
-
-class Blast:
-    """폭발 연출: 퍼지는 원"""
-
-    def __init__(self, win, x, y, r):
-        self.win, self.x, self.y, self.r = win, x, y, r
-        self.t = 0.0
-        self.dead = False
-
-    def update(self, dt, game):
-        self.t += dt
-        self.dead = self.t > 0.35
-
-    def draw(self):
-        gfx.push_clip(*self.win.client_rect())
-        k = self.t / 0.35
-        gfx.circle(self.x, self.y, int(self.r * (0.4 + 0.6 * k)), (255, 160, 40, int(160 * (1 - k))))
-        gfx.circle(self.x, self.y, int(self.r * 0.5 * (0.4 + 0.6 * k)), (255, 240, 180, int(200 * (1 - k))))
-        gfx.pop_clip()
 
 
 class Popup:

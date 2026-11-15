@@ -1,0 +1,19 @@
+{
+ "states": [
+  "crawl",
+  "dash",
+  "rest",
+  "stun",
+  "hurt"
+ ],
+ "cell": [
+  16,
+  14
+ ],
+ "frames": 12,
+ "fps": 12,
+ "origin": [
+  8,
+  13
+ ]
+}

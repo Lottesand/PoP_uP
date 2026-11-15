@@ -1,0 +1,19 @@
+{
+ "states": [
+  "idle",
+  "aim",
+  "shoot",
+  "stun",
+  "hurt"
+ ],
+ "cell": [
+  12,
+  16
+ ],
+ "frames": 12,
+ "fps": 12,
+ "origin": [
+  6,
+  14
+ ]
+}
