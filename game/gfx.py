@@ -273,6 +273,27 @@ def image(name):
     return img
 
 
+_blurs = {}
+
+
+def blurred(name, l, b, w, h):
+    """이미지를 흐리게 그린다 (로그인 화면 배경). 작은 텍스처에 줄여 그렸다가 부드럽게 키운다."""
+    tex = _blurs.get(name)
+    if tex is None:
+        src = image(name)
+        SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, b'1')       # 이 텍스처들만 부드럽게 늘린다
+        tex = src.texture
+        for tw, th in ((240, 135), (60, 34), (160, 90)):        # 줄이고 · 더 줄이고 · 조금 키워서 번지게
+            dst = SDL_CreateTexture(p2.renderer, SDL_PIXELFORMAT_RGBA8888, SDL_TEXTUREACCESS_TARGET, tw, th)
+            SDL_SetRenderTarget(p2.renderer, dst)
+            SDL_RenderCopy(p2.renderer, tex, None, None)
+            tex = dst
+        SDL_SetRenderTarget(p2.renderer, None)
+        SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, b'0')
+        _blurs[name] = tex
+    SDL_RenderCopy(p2.renderer, tex, None, _sdl_rect(l, b, w, h))
+
+
 def shortcut_arrow(l, b):
     # 바로 가기 아이콘 왼쪽 아래의 작은 화살표
     fill(l, b, 13, 13, config.WHITE)

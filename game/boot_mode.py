@@ -1,5 +1,5 @@
 # 부팅 화면: 검은 바탕에 파란 창 로고와 돌아가는 점들
-# 처음 켤 때는 끝나면 play_mode로 바꾸고, 블루스크린 뒤 재부팅이면 pop_mode로 멈춰 둔 플레이 모드로 돌아간다.
+# 처음 켤 때는 끝나면 login_mode(잠금 화면 → 로그인)로 바꾸고, 블루스크린 뒤 재부팅이면 pop_mode로 멈춰 둔 플레이 모드로 돌아간다.
 import math
 from pico2d import *
 
@@ -46,8 +46,8 @@ def update():
             reboot = False
             game_framework.pop_mode()
         else:
-            import play_mode
-            game_framework.change_mode(play_mode)
+            import login_mode
+            game_framework.change_mode(login_mode)      # 처음 켤 때는 잠금 화면 → 로그인 (게임 시작)
 
 
 def draw_logo(cx, cy, size, color):
