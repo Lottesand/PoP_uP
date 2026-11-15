@@ -122,6 +122,24 @@ class Explorer(App):
     def mouse_move(self, mx, my):
         self.hover = self.item_at(mx, my) if mx is not None else None
 
+    # 항목을 끌어서 바탕 화면 · 다른 폴더 창 · 폴더 항목 · 휴지통으로 옮긴다
+    press = None
+
+    def mouse_drag(self, mx, my):
+        if self.press is None:
+            return
+        node, px, py = self.press
+        if shell.drag is None and abs(mx - px) + abs(my - py) >= 5 and fs.deletable(node):
+            shell.drag = self.press
+
+    def mouse_up(self, mx, my):
+        if shell.drag is not None and self.press is not None:
+            node = self.press[0]
+            if shell.drop(node, mx, my) and node.parent is not self.node:
+                self.selected = None
+        shell.drag = None
+        self.press = None
+
     def mouse_down(self, mx, my, now):
         for name, (l, b, w, h) in self.buttons.items():
             if l <= mx < l + w and b <= my < b + h:
@@ -139,6 +157,7 @@ class Explorer(App):
         self.selected = node
         if node is None:
             return
+        self.press = (node, mx, my)
         last, t = self.last_click
         self.last_click = (node, now)
         if last is node and now - t < DOUBLE_CLICK:

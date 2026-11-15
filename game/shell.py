@@ -21,6 +21,57 @@ attach_samples()
 
 wm = None          # play_mode가 init에서 넣어 준다
 menu = None        # 지금 열린 오른쪽 클릭 메뉴
+drag = None        # 탐색기 창에서 끌고 있는 항목 (노드, 누른 x, 누른 y) - 창들 위에 아이콘을 그린다
+
+
+# ---------------------------------------------------------------- 끌어 놓기 (바탕화면 ⇄ 폴더 창)
+def drop_target(mx, my, node):
+    """(mx, my)에 놓으면 들어갈 (폴더, 바탕화면 칸). 놓을 수 없으면 (None, None)
+    폴더 창 안 → 그 창 폴더 (커서 밑이 폴더 항목이면 그 폴더) / 창 밖 → 바탕 화면 (커서 밑이 폴더 아이콘이면 그 폴더)"""
+    import desktop
+    from config import TASKBAR_H
+    win, part = wm.hit(mx, my)
+    if win is not None:
+        folder = getattr(win.app, 'node', None)
+        if part[0] != 'client' or folder is None or not folder.is_container():
+            return None, None
+        item = win.app.item_at(mx, my) if hasattr(win.app, 'item_at') else None
+        if item is not None and item is not node and item.is_container():
+            return item.resolve(), None
+        return folder.resolve(), None
+    if my < TASKBAR_H:
+        return None, None
+    for icon in fs.DESKTOP_FOLDER.children:
+        if icon.pos is None or icon is node:
+            continue
+        l, b, w, h = desktop.cell_rect(*icon.pos)
+        if l <= mx < l + w and b <= my < b + h:
+            return (icon.resolve(), None) if icon.is_container() else (fs.DESKTOP_FOLDER, desktop.cell_at(mx, my))
+    return fs.DESKTOP_FOLDER, desktop.cell_at(mx, my)
+
+
+def drop(node, mx, my):
+    """끌던 항목을 놓는다: 다른 폴더면 옮기고, 바탕 화면이면 놓은 칸에 둔다. 옮겼으면 True"""
+    import desktop
+    target, cell = drop_target(mx, my, node)
+    if target is None:
+        return False
+    if target is not node.parent and not fs.move(node, target):
+        return False
+    if target is fs.DESKTOP_FOLDER and cell is not None:
+        used = {n.pos for n in fs.DESKTOP_FOLDER.children if n is not node and n.pos is not None}
+        node.pos = cell if cell not in used else desktop.nearest_free(used, cell)
+    return True
+
+
+def drop_label(node, mx, my):
+    """끌고 있는 동안 커서 옆 안내: '→ 바탕 화면(으)로 이동'"""
+    target, cell = drop_target(mx, my, node)
+    if target is None or target is node.parent:
+        return None
+    if target.kind == fs.RECYCLE:
+        return '→ 휴지통(으)로 이동'
+    return '→ %s(으)로 이동' % target.name
 
 
 def show_menu(items, x, y):

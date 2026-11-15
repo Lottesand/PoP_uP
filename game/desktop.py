@@ -24,6 +24,11 @@ def wallpaper_name():
     return WALLPAPERS[-1]
 
 
+def nearest_free(used, near):
+    cells = [(c, r) for c in range(COLS) for r in range(ROWS) if (c, r) not in used]
+    return min(cells, key=lambda cr: (cr[0] - near[0]) ** 2 + (cr[1] - near[1]) ** 2)
+
+
 def cell_rect(col, row):
     return 2 + col * ICON_CELL_W, H - 2 - (row + 1) * ICON_CELL_H, ICON_CELL_W, ICON_CELL_H
 
@@ -88,14 +93,12 @@ class Desktop:
         return False
 
     def drop_target(self, mx, my):
-        win, part = shell.wm.hit(mx, my)
-        if win:
-            folder = getattr(win.app, 'node', None)
-            return folder if part[0] == 'client' and folder is not None else None
-        node = self.node_at(mx, my)
-        if node is None or node is self.press[0]:
+        """강조해서 보여 줄 바탕화면 폴더 아이콘 (창 위나 빈 칸이면 None)"""
+        node = self.press[0]
+        target, cell = shell.drop_target(mx, my, node)
+        if target is None or cell is not None or shell.wm.hit(mx, my)[0] is not None:
             return None
-        return node if node.is_container() else None
+        return next((n for n in self.folder.children if n.resolve() is target and n is not node), None)
 
     def mouse_down(self, mx, my, now):
         node = self.node_at(mx, my)
@@ -113,14 +116,7 @@ class Desktop:
 
     def mouse_up(self, mx, my):
         if self.press and self.dragging:
-            node = self.press[0]
-            target = self.drop_target(mx, my)
-            if target is not None:
-                fs.move(node, target)
-            elif shell.wm.hit(mx, my)[0] is None and my >= TASKBAR_H:
-                used = {n.pos for n in self.folder.children if n is not node}
-                want = cell_at(mx, my)
-                node.pos = want if want not in used else self.free_cell(used, want)
+            shell.drop(self.press[0], mx, my)
         self.press = None
         self.dragging = False
         self.drop = None
@@ -170,13 +166,23 @@ class Desktop:
                            0.5 if node is dragged else None)
 
     def draw_drag(self):
-        # 끌고 있는 아이콘은 창들보다 위에 반투명하게 그린다
-        if not self.dragging:
-            return
-        node, px, py = self.press
-        l, b, w, h = cell_rect(*node.pos)
+        # 끌고 있는 아이콘은 창들보다 위에 반투명하게 그린다 (바탕화면 아이콘 · 탐색기 항목 모두)
         mx, my = self.mouse
-        self.draw_icon(node, l + mx - px, b + h + my - py, False, False, 0.6)
+        if self.dragging:
+            node, px, py = self.press
+            l, b, w, h = cell_rect(*node.pos)
+            self.draw_icon(node, l + mx - px, b + h + my - py, False, False, 0.6)
+        elif shell.drag is not None:
+            node, px, py = shell.drag
+            self.draw_icon(node, mx - ICON_CELL_W / 2, my + 30, False, False, 0.6)
+        else:
+            return
+        label = shell.drop_label(node, mx, my)
+        if label:
+            tw = gfx.text_width(label, 12) + 14
+            gfx.fill(mx + 16, my - 34, tw, 22, (255, 255, 255))
+            gfx.frame(mx + 16, my - 34, tw, 22, (118, 118, 118))
+            gfx.text(label, mx + 23, my - 23, 12, (0, 0, 0))
 
     def draw_icon(self, node, l, top, selected, hot, alpha):
         w = ICON_CELL_W
