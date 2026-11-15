@@ -23,7 +23,7 @@ PAPER = (255, 255, 255)
 
 class Paint(App):
     group = 'paint'
-    key, title, icon = 'paint', '제목 없음 - 그림판', 'paint'
+    key, icon = 'paint', 'paint'
     size = (CW * CELL + 60, CH * CELL + 220)
     min_size = (520, 400)
 
@@ -39,6 +39,35 @@ class Paint(App):
         self.ui = []                                          # (사각형, 할 일)
         self.cursor_cell = None
         self.plat_cache = None
+        self.file = None                                      # 저장한 그림 파일 (fs 노드)
+
+    @property
+    def title(self):
+        return (self.file.name if self.file else '제목 없음') + ' - 그림판'
+
+    # ---------------------------------------------------------------- 저장
+    def save(self):
+        """Ctrl+S / [저장]: 하얀 칸은 투명으로, 칠한 부분만 잘라 바탕 화면에 .png로 저장하고 사진 앱으로 연다"""
+        import fs
+        import shell
+        from drawing import Drawing
+        picture = Drawing.from_canvas(self.pixels, CW, CH)
+        if picture is None:
+            shell.error('그림판', '저장할 그림이 없습니다.', '', '캔버스에 무언가를 그린 다음 저장하세요.')
+            return None
+        if self.file is None or self.file.parent is None:
+            desk = fs.DESKTOP_FOLDER
+            self.file = desk.add(fs.Node(desk.unique_name('그림', '.png'), fs.FILE, icon='image_file'))
+        self.file.picture = picture
+        shell.open_node(self.file)
+        return self.file
+
+    def shortcut(self, key):
+        from sdl2 import SDLK_s
+        if key == SDLK_s:
+            self.save()
+            return True
+        return False
 
     # ---------------------------------------------------------------- 칠하기
     def set_cell(self, cx, cy, c):
@@ -185,6 +214,7 @@ class Paint(App):
         x += 140
         gfx.line(x, ry + 6, x, ry + RIBBON_H - 6, (226, 227, 228))
         self.button(x + 10, ry + 52, 70, 26, '모두 지우기', False, self.clear)
+        self.button(x + 10, ry + 22, 70, 26, '저장 (Ctrl+S)', False, self.save)
         gfx.text('이미지', x + 45, ry + 10, 12, (90, 90, 90), align='center')
         x += 90
         gfx.line(x, ry + 6, x, ry + RIBBON_H - 6, (226, 227, 228))
