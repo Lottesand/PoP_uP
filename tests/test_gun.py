@@ -106,17 +106,50 @@ check('one special weapon at a time: taking a drawing returns the icon', P.weapo
 P.drop_weapon()
 P.take_weapon(debuggun.DebugGun(vs)); vs.debug_taken = True
 P.force_out()
-win.x, win.y = 700, 200
+win.x, win.y = 700, TASKBAR_H        # 작업 표시줄 위에 붙여서 걸어 들어갈 수 있게
 P.x, P.y = 100, TASKBAR_H
 step(0.5)
 pm.key_down(pm.SDLK_LSHIFT)                  # 창 밖 공격 모드
 step(0.4)
 l, b, w, h = win.rect()
-for i in range(4):
+for m in pm.monsters:
+    if m.folder is fs.DOCUMENTS:
+        m.dead = True
+for i in range(2):
     P.shot_cd = 0
     pm.mouse_down(l + 10, b + 100)
     step(0.6)
-check('shots crack a window from outside, but only up to 2', P.mode == 'on' and len(win.cracks) == 2 and not P.inside)
+check('two shots crack the border from outside', len(win.cracks) == 2 and win.breach == 0 and not P.inside)
+P.shot_cd = 0
+pm.mouse_down(l + 10, b + 100)
+step(0.6)
+check('third shot breaks it open for 3 s', win.breach > 2 and not win.cracks and not P.inside)
+pm.key_down(pm.SDLK_d)
+for _ in range(240):
+    pm.update()
+    if P.inside:
+        break
+pm.player.key('right', False)
+check('walking into the broken window enters it', P.inside and P.win is win)
+step(0.6)
+# 안쪽에서 벽을 세 번 쏘면 뚫리고, 그쪽으로 가면 깨고 나간다
+cl, cb, cw, ch = win.client_rect()
+P.x = cl + cw - 260
+step(0.3)
+hx, hy = P.hand()
+for i in range(3):
+    P.shot_cd = 0
+    pm.mouse_down(cl + cw + 100, hy)
+    step(0.4)
+check('three shots at the inner wall open an exit', win.exit is not None and P.inside)
+pm.key_down(pm.SDLK_d)
+for _ in range(240):
+    pm.update()
+    if not P.inside:
+        break
+pm.player.key('right', False)
+l, b, w, h = win.rect()
+check('walking to the hole breaks out on that side', not P.inside and P.x >= l + w)
 close_canvas()
 print('%d/%d passed' % (sum(ok), len(ok)))
 sys.exit(0 if all(ok) else 1)

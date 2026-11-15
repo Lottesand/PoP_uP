@@ -121,6 +121,53 @@ nx, ny = desk_center(note)
 pm.desktop.last_click = (None, -1.0)
 label = drag(nx, ny, px, py)
 check('non-picture files are not equipped', P.weapon is hammer.picture and label != '+ 포인터에게 무기로 장착')
+# ---------------------------------------------------------------- 바탕 화면 파란 선택 상자
+for w in list(pm.wm.windows):
+    pm.wm.close(w)
+P.drop_weapon()
+for _ in range(10):
+    pm.update()
+frame()
+D = pm.desktop
+icons = [n for n in D.items() if n.pos[0] == 0][:4]          # 첫 줄 위에서 4개
+l0, b0, w0, h0 = desktop.cell_rect(*icons[0].pos)
+l3, b3, w3, h3 = desktop.cell_rect(*icons[3].pos)
+pm.mouse_down(l0 + w0 + 40, b0 + h0 - 10)
+for k in range(1, 9):
+    pm.mouse_move(l0 + w0 + 40 - (w0) * k / 8, b0 + h0 - 10 - (b0 + h0 - b3 - 20) * k / 8)
+frame()
+screenshot.shot(os.path.join(OUT, 'band.png'))
+check('dragging on empty desktop draws a selection box', D.band_rect() is not None)
+check('the box selects every icon it touches', set(icons) <= set(D.picked))
+pm.mouse_up(*D.mouse)
+check('releasing ends the box but keeps the selection', D.band is None and set(icons) <= set(D.picked))
+# 선택한 아이콘을 하나 끌면 다 같이 움직인다
+before = {n: n.pos for n in icons}
+lx, ly = desk_center(icons[0])
+D.last_click = (None, -1.0)
+drag(lx, ly, lx + desktop.ICON_CELL_W * 3, ly)
+check('dragging one of the selected icons moves the whole group 3 columns', all(n.pos == (before[n][0] + 3, before[n][1])
+                                                                            for n in icons))
+# 선택 상자는 누르고 있는 동안 포인터의 발판
+P.x, P.y, P.vy = 900, 420, 0
+for _ in range(5):
+    pm.update()
+pm.mouse_down(860, 300)
+pm.mouse_move(1000, 200)
+for _ in range(60):
+    pm.mouse_move(1000, 200); pm.update()
+check('the pointer lands on the selection box while it is held', P.ground == 'band' and abs(P.y - 300) < 1)
+for k in range(1, 11):
+    pm.mouse_move(1000, 200)
+    D.band = (860, 300 + 10 * k, 1000, 200)
+    pm.update()
+check('raising the box lifts the pointer standing on it', abs(P.y - 400) < 1 and P.ground == 'band')
+frame()
+screenshot.shot(os.path.join(OUT, 'band_platform.png'))
+pm.mouse_up(1000, 200)
+for _ in range(90):
+    pm.update()
+check('letting go of the mouse drops the pointer', P.ground == 'taskbar')
 close_canvas()
 print('%d/%d passed' % (sum(ok), len(ok)))
 sys.exit(0 if all(ok) else 1)
