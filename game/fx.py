@@ -89,6 +89,98 @@ class Spark(Effect):
             gfx.fill(snap(self.x + dx * d), snap(self.y + dy * d), size, size, self.color)
 
 
+class Mote(Effect):
+    """그림 무기 끝에서 흩날리는 속성 알갱이 (4px 블록)
+    fire 위로 솟는 불티 · ice 천천히 내려앉는 눈 · leaf 하늘하늘 잎 · shock 지지직 번개 · heavy 퍼지는 먼지"""
+    life = 0.45
+
+    def __init__(self, win, x, y, element, clip=True):
+        super().__init__(win, clip)
+        self.x, self.y, self.element = x, y, element
+        self.vx, self.vy = random.uniform(-40, 40), random.uniform(-40, 40)
+        if element == 'fire':
+            self.vy = random.uniform(60, 140)
+        elif element == 'ice':
+            self.vy = random.uniform(-60, -20)
+            self.life = 0.6
+        elif element == 'heavy':
+            self.vx, self.vy = random.uniform(-90, 90), random.uniform(-10, 40)
+        self.phase = random.uniform(0, 6)
+
+    def update(self, dt, game):
+        super().update(dt, game)
+        self.x += self.vx * dt
+        self.y += self.vy * dt
+        if self.element == 'leaf':
+            self.x += math.sin(self.t * 12 + self.phase) * 60 * dt
+
+    def paint(self, k):
+        x, y, e = snap(self.x), snap(self.y), self.element
+        a = int(255 * (1 - k))
+        if e == 'fire':
+            col = (255, 230, 120) if k < 0.3 else (255, 120, 0) if k < 0.6 else (200, 40, 0)
+            s = BLOCK * (2 if k < 0.5 else 1)
+            gfx.fill(x, y, s, s, col + (a,))
+        elif e == 'ice':
+            gfx.fill(x, y, BLOCK, BLOCK, (230, 248, 255, a))
+            if int(self.t * 20) % 2:
+                for dx, dy in ((BLOCK, 0), (-BLOCK, 0), (0, BLOCK), (0, -BLOCK)):
+                    gfx.fill(x + dx, y + dy, BLOCK, BLOCK, (140, 210, 255, a))
+        elif e == 'leaf':
+            gfx.fill(x, y, BLOCK * 2, BLOCK, (60, 200, 90, a))
+            gfx.fill(x + BLOCK, y + BLOCK, BLOCK, BLOCK, (30, 140, 60, a))
+        elif e == 'shock':
+            if int(self.t * 30) % 2 == 0:
+                px, py = x, y
+                for i in range(3):
+                    nx, ny = px + random.choice((-BLOCK, BLOCK)), py + BLOCK
+                    gfx.fill(nx, ny, BLOCK, BLOCK, (255, 240, 80, a))
+                    px, py = nx, ny
+        elif e == 'heavy':
+            s = snap(BLOCK + 10 * k) + BLOCK
+            gfx.fill(x - s // 2, y - s // 2, s, s, (150, 150, 150, a // 2))
+        else:
+            gfx.fill(x, y, BLOCK, BLOCK, (255, 255, 255, a))
+
+
+class ElementBurst(Effect):
+    """그림 무기로 맞힌 자리: 번쩍 + 속성 모양으로 터진다"""
+    life = 0.32
+
+    def __init__(self, win, x, y, element, color, big=False, clip=True):
+        super().__init__(win, clip)
+        self.x, self.y, self.element, self.color, self.big = x, y, element, color, big
+        n = 10 if big else 7
+        a0 = random.uniform(0, math.pi * 2)
+        self.dirs = [(math.cos(a0 + i * math.pi * 2 / n), math.sin(a0 + i * math.pi * 2 / n)) for i in range(n)]
+
+    def paint(self, k):
+        x, y, e, c = snap(self.x), snap(self.y), self.element, self.color
+        if k < 0.25:                                    # 가운데 번쩍
+            s = BLOCK * (6 if self.big else 4)
+            gfx.fill(x - s // 2, y - s // 2, s, s, WHITE)
+        reach = (16 + 60 * k) * (1.4 if self.big else 1.0)
+        if e == 'ice':                                  # 얼음: 십자로 뻗는 결정
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (0.7, 0.7), (-0.7, 0.7), (0.7, -0.7), (-0.7, -0.7)):
+                for j in range(int(reach * (1 - k) / BLOCK)):
+                    gfx.fill(snap(x + dx * j * BLOCK), snap(y + dy * j * BLOCK), BLOCK, BLOCK,
+                             (200, 240, 255) if j % 2 else c)
+        elif e == 'shock':                              # 번개: 사방으로 꺾이는 줄기
+            if int(k * 12) % 2 == 0:
+                for dx, dy in self.dirs[:5]:
+                    px, py = x, y
+                    for j in range(5):
+                        px += dx * BLOCK * 2 + random.choice((-BLOCK, 0, BLOCK))
+                        py += dy * BLOCK * 2 + random.choice((-BLOCK, 0, BLOCK))
+                        gfx.fill(snap(px), snap(py), BLOCK, BLOCK, (255, 240, 80))
+        else:                                           # 불 · 풀 · 묵직함 · 없음: 블록이 튀어 나간다
+            size = BLOCK * (3 if k < 0.4 else 2 if k < 0.7 else 1)
+            for dx, dy in self.dirs:
+                gfx.fill(snap(x + dx * reach), snap(y + dy * reach + (40 * k if e == 'fire' else 0)), size, size, c)
+        r = snap(10 + reach * 0.8)                      # 속성 색 고리
+        gfx.frame(x - r, y - r, 2 * r, 2 * r, c, BLOCK if k < 0.5 else 2)
+
+
 class Ring(Effect):
     """폭발: 네모난 고리가 반경까지 퍼지며 얇아진다"""
     life = 0.35

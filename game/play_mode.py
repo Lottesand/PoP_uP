@@ -12,7 +12,7 @@ import level
 import toast
 import textbox
 from monsters import BugWorm, Popup
-from fx import PokeTrail, Spark, Ring
+from fx import PokeTrail, Spark, Ring, Mote, ElementBurst
 from config import *
 from desktop import Desktop
 from taskbar import Taskbar, group_windows
@@ -472,7 +472,14 @@ def hurt_player(damage, from_x):
 
 def swing_hits():
     """그림 무기를 휘두르는 동안: 그림의 칠한 칸이 닿은 몬스터를 한 번씩 맞힌다"""
-    if not player.has('drawing') or player.swing_t <= 0 or not player.inside:
+    if player.has('drawing') and player.swing_active():
+        # 휘두르는 끝에서 속성 알갱이
+        layer = player.win if player.inside else player.layer
+        tx, ty = player.weapon_tip()
+        for _ in range(2):
+            effects.append(Mote(layer, tx + random.uniform(-6, 6), ty + random.uniform(-6, 6),
+                                player.weapon.element, clip=player.inside))
+    if not player.has('drawing') or not player.swing_active() or not player.inside:
         return
     pts = player.weapon_points()
     w = player.weapon
@@ -485,9 +492,10 @@ def swing_hits():
             continue
         player.swing_hits.append(m)
         damage = w.strike(m, sys.modules[__name__], player.center()[0])
-        effects.append(Spark(m.win, hit[0], hit[1], w.color, 8))
-        effects.append(Popup(m.win, *m.center(), str(damage), w.color, 20))
-        impact(0.05, 0.15, 4 if damage < 20 else 7)
+        big = damage >= 20 or w.element == 'heavy'
+        effects.append(ElementBurst(m.win, hit[0], hit[1], w.element, w.color, big))
+        effects.append(Popup(m.win, *m.center(), str(damage), w.color, 24 if big else 20))
+        impact(0.08 if big else 0.05, 0.2 if big else 0.15, 8 if big else 4)
 
 
 def dash_hits():
@@ -530,6 +538,8 @@ def fight():
             if overlap(t.rect(), m.rect()):
                 if hasattr(t, 'strike'):
                     t.strike(m, sys.modules[__name__])
+                    if t.name == 'drawing':
+                        effects.append(ElementBurst(m.win, *m.center(), t.drawing.element, t.drawing.color, True))
                 else:
                     m.hit(t.damage, t.name, t.x)
                 t.struck(m)
