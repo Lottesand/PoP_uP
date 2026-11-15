@@ -1,6 +1,7 @@
 # 프로그램 열기·오류 창·오른쪽 클릭 메뉴처럼 여러 곳에서 쓰는 "운영체제" 기능
 import fs
 import apps
+import browser                  # apps.APPS['browser']를 채운다
 from context_menu import ContextMenu
 
 wm = None          # play_mode가 init에서 넣어 준다
