@@ -1,6 +1,7 @@
 # 창 안에 그려지는 프로그램 화면들. draw(l, b, w, h, active)는 창의 내용 영역을 받는다.
 import time
 import gfx
+import textbox
 from config import *
 
 G_BACK, G_FWD, G_REFRESH, G_SEARCH = '\uE72B', '\uE72A', '\uE72C', '\uE721'
@@ -108,20 +109,42 @@ class Notepad(App):
     group = 'notepad'
     icon = 'notepad'
     size = (640, 460)
+    LINE_H, FONT_SIZE = 20, 14
     _count = 0
 
     def __init__(self, node):
         Notepad._count += 1
         self.node = node
         self.key = 'notepad:%d' % node.id if node else 'notepad#%d' % Notepad._count
+        self.box = textbox.TextBox(self, list(node.lines) if node else [''], multiline=True, on_save=self.save)
+        self.area = (0, 0, 0, 0)
+        self.first = 0                 # 맨 위에 보이는 줄
 
     @property
     def title(self):
-        return (self.node.name if self.node else '제목 없음') + ' - Windows 메모장'
+        name = self.node.name if self.node else '제목 없음'
+        return ('*' if self.box.dirty else '') + name + ' - Windows 메모장'
 
     @property
     def lines(self):
-        return self.node.lines if self.node else []
+        return self.box.lines
+
+    def save(self):
+        """Ctrl+S: 파일에 쓴다. 제목 없는 문서는 바탕 화면에 새 텍스트 문서로 저장한다"""
+        import fs
+        if self.node is None:
+            self.node = fs.DESKTOP_FOLDER.add(fs.Node(fs.DESKTOP_FOLDER.unique_name('제목 없음', '.txt'), fs.FILE))
+        self.node.lines = list(self.box.lines)
+        self.box.dirty = False
+
+    def mouse_down(self, mx, my, now):
+        l, b, w, h = self.area
+        if l <= mx < l + w and b <= my < b + h:
+            textbox.set_focus(self.box)
+            self.box.click(mx, my, l + 6, b + h - 4 + self.first * self.LINE_H, self.LINE_H, self.FONT_SIZE)
+
+    def wheel(self, dy):
+        self.first = max(0, min(len(self.box.lines) - 1, self.first - dy * 3))
 
     def draw(self, l, b, w, h, active):
         top = b + h
@@ -130,26 +153,37 @@ class Notepad(App):
         for m in ('파일(F)', '편집(E)', '서식(O)', '보기(V)', '도움말(H)'):
             x += gfx.text(m, x, top - 10, 12) + 14
         gfx.line(l, top - 20, l + w, top - 20, (240, 240, 240))
-        for i, ln in enumerate(self.lines):
-            gfx.text(ln, l + 6, top - 34 - i * 20, 14)
-        if active and int(time.time() * 2) % 2 == 0:
-            gfx.fill(l + 6, top - 44, 1, 18, TEXT)
+        # 글자 영역: 커서가 보이도록 위아래로 넘긴다
+        self.area = (l, b + 22, w - 17, h - 42)
+        rows = max(1, int((h - 46) // self.LINE_H))
+        if self.box.row < self.first:
+            self.first = self.box.row
+        elif self.box.row >= self.first + rows:
+            self.first = self.box.row - rows + 1
+        gfx.push_clip(*self.area)
+        self.box.draw(l + 6, top - 24, self.LINE_H, self.FONT_SIZE, TEXT, textbox.focus is self.box,
+                      self.first, rows + 1)
+        gfx.pop_clip()
         # 상태 표시줄 · 스크롤바
         gfx.fill(l, b, w, 22, (240, 240, 240))
         gfx.line(l, b + 22, l + w, b + 22, (220, 220, 220))
         x = l + w - 30
-        for part in ('UTF-8', 'Windows (CRLF)', '100%', 'Ln 1, Col 1'):
+        pos = 'Ln %d, Col %d' % (self.box.row + 1, self.box.col + 1)
+        for part in ('UTF-8', 'Windows (CRLF)', '100%', pos):
             x -= gfx.text(part, x, b + 11, 12, align='right') + 34
             gfx.line(x + 18, b + 2, x + 18, b + 20, (210, 210, 210))
         self.scrollbar = (l + w - 17, b + 22, 17, h - 42)
         gfx.fill(*self.scrollbar, (240, 240, 240))
-        gfx.fill(l + w - 13, b + h - 60, 9, 36, (194, 194, 194))
+        n = max(1, len(self.box.lines))
+        bar_h = max(30, (h - 76) * min(1.0, rows / n))
+        k = self.first / max(1, n - rows) if n > rows else 0
+        gfx.fill(l + w - 13, top - 37 - bar_h - (h - 76 - bar_h) * k, 9, bar_h, (194, 194, 194))
 
     def ladders(self):
         return [self.scrollbar] if hasattr(self, 'scrollbar') else []
 
 
-# ==================================================================== 웹 브라우저 (인터넷 끊김)
+# ==================================================================== 웹 브라우저 오류 화면의 공룡 (browser.py가 씀)
 DINO = [
     '..........######..',
     '.........##.######',
@@ -178,69 +212,6 @@ def draw_dino(l, b, px, color=(83, 83, 83)):
         for c, ch in enumerate(row):
             if ch == '#':
                 gfx.fill(l + c * px, b + (rows - 1 - r) * px, px, px, color)
-
-
-class Browser(App):
-    group = 'browser'
-    key, title, icon = 'browser', '새 탭 - Chrome', 'browser'
-    size = (1000, 640)
-    online = False                      # 구간 1에서 인터넷 차단기를 끄면 True
-
-    def draw(self, l, b, w, h, active):
-        if self.online:
-            self.draw_online(l, b, w, h, active)
-        else:
-            self.draw_offline(l, b, w, h, active)
-
-    def draw_online(self, l, b, w, h, active):
-        top = b + h
-        gfx.fill(l, b, w, h, WHITE)
-        gfx.fill(l, top - 34, w, 34, (222, 225, 230) if active else (232, 234, 237))
-        gfx.fill(l + 8, top - 34, 230, 28, WHITE)
-        gfx.icon('browser', 16, l + 20, top - 28)
-        gfx.text('새 탭', l + 44, top - 20, 12)
-        y = top - 34 - 38
-        gfx.fill(l + 118, y + 5, w - 170, 28, (241, 243, 244))
-        gfx.text('Google에서 검색하거나 URL을 입력하세요', l + 140, y + 19, 14, (95, 99, 104))
-        gfx.line(l, y, l + w, y, (218, 220, 224))
-        cx, cy = l + w / 2, b + h * 0.58
-        x = cx - 130
-        for ch, c in zip('Google', ((66, 133, 244), (234, 67, 53), (251, 188, 5), (66, 133, 244), (52, 168, 83),
-                                    (234, 67, 53))):
-            x += gfx.text(ch, x, cy, 64, c, FONT_BOLD)
-        gfx.fill(cx - 280, cy - 96, 560, 44, WHITE)
-        gfx.frame(cx - 280, cy - 96, 560, 44, (223, 225, 229))
-        gfx.symbol(G_SEARCH, cx - 256, cy - 74, 14, (154, 160, 166))
-
-    def draw_offline(self, l, b, w, h, active):
-        top = b + h
-        gfx.fill(l, b, w, h, WHITE)
-        # 탭 줄
-        gfx.fill(l, top - 34, w, 34, (222, 225, 230) if active else (232, 234, 237))
-        gfx.fill(l + 8, top - 34, 230, 28, WHITE)
-        gfx.icon('browser', 16, l + 20, top - 28)
-        gfx.text('인터넷 연결 없음', l + 44, top - 20, 12)
-        gfx.symbol('\uE711', l + 222, top - 20, 8, (90, 90, 90))
-        gfx.symbol('\uE710', l + 256, top - 20, 10, (90, 90, 90))
-        # 도구 모음 · 주소창
-        y = top - 34 - 38
-        for i, g in enumerate((G_BACK, G_FWD, G_REFRESH)):
-            gfx.symbol(g, l + 22 + i * 34, y + 19, 12, (160, 160, 160) if i < 2 else (90, 90, 90))
-        gfx.fill(l + 118, y + 5, w - 170, 28, (241, 243, 244))
-        gfx.symbol('\uE946', l + 136, y + 19, 12, (90, 90, 90))
-        gfx.text('chrome://network-error', l + 156, y + 19, 14, (60, 60, 60))
-        gfx.symbol('\uE712', l + w - 26, y + 19, 12, (90, 90, 90))
-        gfx.line(l, y, l + w, y, (218, 220, 224))
-        # 오류 페이지
-        cx = l + max(60, (w - 600) // 2)
-        cy = y - 90
-        draw_dino(cx, cy - 72, 4)
-        gfx.text('인터넷에 연결되어 있지 않음', cx, cy - 110, 24, (32, 33, 36))
-        gfx.text('다음 방법을 시도해 보세요.', cx, cy - 150, 14, (95, 99, 104))
-        for i, tip in enumerate(('네트워크 케이블, 모뎀, 라우터 확인', 'Wi-Fi에 다시 연결')):
-            gfx.fill(cx + 22, cy - 178 - i * 24, 4, 4, (95, 99, 104))
-            gfx.text(tip, cx + 34, cy - 176 - i * 24, 14, (95, 99, 104))
-        gfx.text('ERR_INTERNET_DISCONNECTED', cx, cy - 240, 12, (117, 117, 117))
 
 
 # ==================================================================== 그림판
@@ -367,4 +338,4 @@ class Terminal(App):
 
 
 # ==================================================================== 프로그램 목록
-APPS = {'browser': Browser, 'paint': Paint, 'vscode': VSCode, 'kakao': Kakao, 'terminal': Terminal}
+APPS = {'paint': Paint, 'vscode': VSCode, 'kakao': Kakao, 'terminal': Terminal}
