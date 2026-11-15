@@ -9,12 +9,16 @@ import math
 import pico2d.pico2d as p2
 from pico2d import Image
 from sdl2 import (SDL_CreateTexture, SDL_UpdateTexture, SDL_SetTextureBlendMode, SDL_PIXELFORMAT_ABGR8888,
-                  SDL_TEXTUREACCESS_STATIC, SDL_BLENDMODE_BLEND)
+                  SDL_TEXTUREACCESS_STATIC, SDL_BLENDMODE_BLEND, SDL_SetTextureAlphaMod, SDL_SetTextureColorMod)
 
 import gfx
 from config import *
 
 WHITE_CELL = (255, 255, 255)
+MOTION = 1.8                    # 한 번 휘두르는 전체 시간 = 맞는 시간(swing_time) × 이만큼
+# 동작 구간 (전체 0~1): 칼 = 들어 올리기 → 내려치기 → 넘어가기 → 되돌리기, 창 = 당기기 → 찌르기 → 버티기 → 되돌리기
+BLADE_PHASES = (0.2, 0.45, 0.58)
+SPEAR_PHASES = (0.25, 0.4, 0.56)
 SPEAR_RATIO = 2.6               # 긴 변 / 짧은 변이 이 이상이면 창
 LONG_MIN, LONG_MAX = 56, 190    # 무기 길이 (px)
 
@@ -65,7 +69,8 @@ class Drawing:
         # 능력치
         self.damage = int(round(min(40, max(6, 5 + math.sqrt(self.n) * 1.2))))
         self.swing_time = min(0.5, 0.16 + self.n / 3000) * (1.2 if self.element == 'heavy' else 1.0)
-        self.cooldown = self.swing_time + 0.12
+        self.motion_time = self.swing_time * MOTION      # 준비 · 내지르기 · 되돌리기까지 한 번 동작 전체
+        self.cooldown = self.motion_time + 0.04
         # 한 칸 = 2px이 기본. 너무 길면 줄이고 너무 짧으면 키워서 길이를 LONG_MIN~LONG_MAX에 맞춘다
         self.px = min(LONG_MAX / long_, max(LONG_MIN / long_, 2.0))
         self.length = long_ * self.px               # 손에서 칼끝까지
@@ -139,9 +144,16 @@ class Drawing:
             self.image = Image(tex)
         return self.image
 
-    def draw(self, hx, hy, a, mirror, scale=1.0):
-        """손 (hx, hy)에서 a 방향으로 뻗은 무기"""
+    def draw(self, hx, hy, a, mirror, scale=1.0, alpha=255, tint=None):
+        """손 (hx, hy)에서 a 방향으로 뻗은 무기. alpha · tint는 잔상용"""
         img = self.texture()
+        SDL_SetTextureAlphaMod(img.texture, int(alpha))
+        SDL_SetTextureColorMod(img.texture, *(tint or (255, 255, 255)))
+        self._draw(img, hx, hy, a, mirror, scale)
+        SDL_SetTextureAlphaMod(img.texture, 255)
+        SDL_SetTextureColorMod(img.texture, 255, 255, 255)
+
+    def _draw(self, img, hx, hy, a, mirror, scale):
         half = self.length * scale / 2
         cx, cy = hx + math.cos(a) * half, hy + math.sin(a) * half
         if self.tall:

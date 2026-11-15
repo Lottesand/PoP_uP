@@ -185,6 +185,8 @@ class Pointer:
         self.swing_t = self.swing_len = self.swing_cd = 0.0
         self.swing_from = self.swing_to = 0.0
         self.swing_hits = []            # 이번 휘두르기에 이미 맞힌 몬스터
+        self.swing_aim = 0.0            # 휘두를 때 조준한 각도
+        self.swing_trail = []           # 지난 몇 프레임의 무기 자세 (잔상 · 칼끝 궤적)
         self.eat_cd = 0.0
         self.switch_cd = 0.0
         self.fail_t = 0.0               # 전환 실패 흔들림
@@ -388,35 +390,137 @@ class Pointer:
             self.facing = 1 if mx > hx else -1
             hx, hy = self.hand()
         a = math.atan2(my - hy, mx - hx)
-        if w.shape == 'spear':
-            self.swing_from = self.swing_to = a
-        else:
-            arc = math.radians(80)
-            self.swing_from, self.swing_to = a + arc * self.facing, a - arc * self.facing
-        self.swing_t = self.swing_len = w.swing_time
+        self.swing_from = self.weapon_pose()[2]     # 지금 자세에서 시작한다
+        self.swing_aim = a
+        self.swing_t = self.swing_len = w.motion_time
         self.swing_cd = w.cooldown
         self.swing_hits = []
+        self.swing_trail = []
         self.poke_dir = (math.cos(a), math.sin(a))
         return w.tip(hx, hy, a)
 
+    def rest_angle(self):
+        rest = math.radians(60)
+        return rest if self.facing > 0 else math.pi - rest
+
+    def swing_k(self):
+        return 1 - self.swing_t / self.swing_len if self.swing_t > 0 else 1.0
+
+    def swing_phase(self):
+        """'windup' 준비 · 'strike' 내지르기(맞는 때) · 'follow' 넘어가기/버티기(맞는 때) · 'recover' 되돌리기"""
+        if self.swing_t <= 0 or not self.has('drawing'):
+            return None
+        from drawing import BLADE_PHASES, SPEAR_PHASES
+        p1, p2, p3 = SPEAR_PHASES if self.weapon.shape == 'spear' else BLADE_PHASES
+        k = self.swing_k()
+        return 'windup' if k < p1 else 'strike' if k < p2 else 'follow' if k < p3 else 'recover'
+
+    def swing_active(self):
+        return self.swing_phase() in ('strike', 'follow')
+
     def weapon_pose(self):
         """지금 그림 무기를 잡은 (손 x, 손 y, 각도)"""
+        from drawing import BLADE_PHASES, SPEAR_PHASES
         hx, hy = self.hand()
         w = self.weapon
-        if self.swing_t > 0:
-            k = 1 - self.swing_t / self.swing_len
-            if w.shape == 'spear':
-                a = self.swing_from
-                push = (math.sin(math.pi * k) * 0.6 - 0.15) * w.length
-                return hx + math.cos(a) * push, hy + math.sin(a) * push, a
-            e = k * k * (3 - 2 * k)
-            return hx, hy, self.swing_from + (self.swing_to - self.swing_from) * e
-        rest = math.radians(60)
-        return hx, hy, rest if self.facing > 0 else math.pi - rest
+        if self.swing_t <= 0:
+            return hx, hy, self.rest_angle()
+        k, f, a0 = self.swing_k(), self.facing, self.swing_aim
+        out = lambda t: 1 - (1 - t) ** 3                # 빠르게 출발해서 멈춘다
+        into = lambda t: t * t * t                      # 천천히 출발해서 몰아친다
+        both = lambda t: t * t * (3 - 2 * t)
+        mix = lambda x, y, t: x + (y - x) * t
+        if w.shape == 'spear':
+            p1, p2, p3 = SPEAR_PHASES
+            if k < p1:                                  # 뒤로 당기며 겨눈다
+                t = out(k / p1)
+                a, push = mix(self.swing_from, a0, t), -0.3 * t
+            elif k < p2:                                # 확 찌른다
+                a, push = a0, mix(-0.3, 0.55, out((k - p1) / (p2 - p1)))
+            elif k < p3:                                # 끝에서 잠깐 버틴다
+                a, push = a0, 0.55
+            else:                                       # 거두어들인다
+                t = both((k - p3) / (1 - p3))
+                a, push = mix(a0, self.rest_angle(), t), mix(0.55, 0.0, t)
+            push *= w.length
+            return hx + math.cos(a) * push, hy + math.sin(a) * push, a
+        p1, p2, p3 = BLADE_PHASES
+        up, down, over = a0 + math.radians(120) * f, a0 - math.radians(80) * f, a0 - math.radians(98) * f
+        if k < p1:                                      # 머리 위로 크게 들어 올린다
+            a = mix(self.swing_from, up, out(k / p1))
+        elif k < p2:                                    # 몰아쳐 내려친다
+            a = mix(up, down, into((k - p1) / (p2 - p1)) * 0.5 + both((k - p1) / (p2 - p1)) * 0.5)
+        elif k < p3:                                    # 힘이 남아 조금 더 넘어간다
+            a = mix(down, over, out((k - p2) / (p3 - p2)))
+        else:                                           # 제자리로
+            a = mix(over, self.rest_angle(), both((k - p3) / (1 - p3)))
+        return hx, hy, a
+
+    def draw_swing_fx(self):
+        """잔상(속성 색으로 물든 옅은 무기)과 칼끝 궤적(4px 블록 띠)"""
+        w = self.weapon
+        trail = self.swing_trail
+        if len(trail) < 2:
+            return
+        c = w.color
+        bx, by = self.body_lunge()
+        for i, (hx, hy, a) in enumerate(trail[1:4]):
+            w.draw(hx + bx, hy + by, a, self.facing, alpha=150 - i * 45, tint=c)
+        tips = [w.tip(hx + bx, hy + by, a) for hx, hy, a in trail]
+        for i in range(len(tips) - 1):
+            (x0, y0), (x1, y1) = tips[i], tips[i + 1]
+            n = max(1, int(math.hypot(x1 - x0, y1 - y0) / 4))
+            thick = max(1, 3 - i)
+            for j in range(n + 1):
+                x, y = x0 + (x1 - x0) * j / n, y0 + (y1 - y0) * j / n
+                for s in range(thick):
+                    ex, ey = (x0 - self.center()[0]), (y0 - self.center()[1])
+                    d = math.hypot(ex, ey) or 1
+                    sx, sy = x - ex / d * s * 4, y - ey / d * s * 4     # 칼끝에서 손 쪽으로 두께
+                    col = WHITE if s == 0 and i < 2 else c
+                    gfx.fill(int(sx) // 4 * 4, int(sy) // 4 * 4, 4, 4, col + (230 - i * 40,))
+        if w.shape == 'spear':
+            hx, hy, a = trail[0]
+            tx, ty = w.tip(hx + bx, hy + by, a)
+            dx, dy = math.cos(a), math.sin(a)
+            nx, ny = -dy, dx
+            # 창대 양옆으로 뒤로 흐르는 속도선
+            for side, length in ((-12, 70), (12, 50), (-22, 36), (22, 28)):
+                for j in range(0, length, 8):
+                    x = tx - dx * (24 + j) + nx * side
+                    y = ty - dy * (24 + j) + ny * side
+                    gfx.fill(int(x) // 4 * 4, int(y) // 4 * 4, 4, 4, (WHITE if j < 16 else c) + (220 - j * 3,))
+            if self.swing_phase() == 'follow':
+                # 다 뻗은 창끝에서 별 모양으로 번쩍
+                k = 1 - (self.swing_k() - 0.4) / 0.16
+                for r, col in ((18 * k + 6, c), (10 * k + 4, WHITE)):
+                    for ex, ey in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        for s in range(0, int(r), 4):
+                            gfx.fill(int(tx + ex * s) // 4 * 4, int(ty + ey * s) // 4 * 4, 4, 4, col)
+                gfx.fill(int(tx) // 4 * 4 - 4, int(ty) // 4 * 4 - 4, 12, 12, WHITE)
+
+    def body_lunge(self):
+        """휘두르는 동안 몸도 같이: 창은 앞으로 내딛고, 칼은 들 때 뒤로 젖혔다가 내려칠 때 숙인다"""
+        phase = self.swing_phase()
+        if phase is None:
+            return 0.0, 0.0
+        a0 = self.swing_aim
+        if self.weapon.shape == 'spear':
+            hx, hy = self.hand()
+            px, py, a = self.weapon_pose()
+            return (px - hx) * 0.7, (py - hy) * 0.7
+        lean = {'windup': -6, 'strike': 10, 'follow': 8, 'recover': 2}[phase]
+        return math.cos(a0) * lean, -abs(lean) * 0.4 if phase in ('strike', 'follow') else 0.0
+
+    def weapon_tip(self):
+        hx, hy, a = self.weapon_pose()
+        bx, by = self.body_lunge()
+        return self.weapon.tip(hx + bx, hy + by, a)
 
     def weapon_points(self):
         hx, hy, a = self.weapon_pose()
-        return self.weapon.points(hx, hy, a, self.facing)
+        bx, by = self.body_lunge()
+        return self.weapon.points(hx + bx, hy + by, a, self.facing)
 
     def throw_weapon(self, mx, my):
         """우클릭: 그림 무기를 던진다 (다시 쓰려면 사진 창에서 또 집는다)"""
@@ -504,6 +608,10 @@ class Pointer:
         self.dash_cd = max(0.0, self.dash_cd - dt)
         self.swing_t = max(0.0, self.swing_t - dt)
         self.swing_cd = max(0.0, self.swing_cd - dt)
+        if self.has('drawing') and self.swing_active():
+            self.swing_trail = ([self.weapon_pose()] + self.swing_trail)[:6]
+        else:
+            self.swing_trail = self.swing_trail[:-1]
         self.shot_cd = max(0.0, self.shot_cd - dt)
         self.f5_cd = max(0.0, self.f5_cd - dt)
         self.recoil = max(0.0, self.recoil - dt)
@@ -719,14 +827,19 @@ class Pointer:
         if self.poke_t > 0:
             lunge = 14 * math.sin(math.pi * (1 - self.poke_t / POKE_TIME))   # 앞으로 내질렀다 돌아온다
         ox, oy = self.poke_dir[0] * lunge + shake, self.poke_dir[1] * lunge
+        if self.has('drawing'):
+            bx, by = self.body_lunge()
+            ox, oy = ox + bx, oy + by
         sprites.pointer().draw(self.mode, FACES[self.face()], self.anim_state(), self.anim_t,
                                self.x + PW / 2 + ox, self.y + oy, self.facing < 0)
         if self.held:
             hx, hy = self.hand()
             draw_button(self.held, hx + ox + self.facing * 12, hy + oy, 0.8)
         if self.has('drawing'):
+            self.draw_swing_fx()
             hx, hy, a = self.weapon_pose()
-            self.weapon.draw(hx, hy, a, self.facing)
+            bx, by = self.body_lunge()
+            self.weapon.draw(hx + bx, hy + by, a, self.facing)
         elif self.has('gun'):
             hx, hy = self.hand()
             a = math.atan2(self.aim[1] - hy, self.aim[0] - hx)
