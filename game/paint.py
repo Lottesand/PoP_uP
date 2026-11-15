@@ -8,6 +8,7 @@ from pico2d import Image
 from sdl2 import SDL_CreateTexture, SDL_UpdateTexture, SDL_PIXELFORMAT_ABGR8888, SDL_TEXTUREACCESS_STREAMING
 
 import gfx
+import uiblocks
 import apps
 from apps import App
 from config import *
@@ -191,6 +192,7 @@ class Paint(App):
         gfx.frame(l, b, w, h, (153, 209, 255) if on else (220, 220, 220))
         gfx.text(label, l + w / 2, b + h / 2, 12, align='center')
         self.ui.append(((l, b, w, h), act))
+        uiblocks.add('btn:' + label, l, b, w, h)
 
     def draw(self, l, b, w, h, active):
         top = b + h
@@ -202,6 +204,8 @@ class Paint(App):
         gfx.text('파일', l + 25, top - 12, 12, WHITE, align='center')
         gfx.text('홈', l + 70, top - 12, 12)
         gfx.text('보기', l + 104, top - 12, 12)
+        for key, x0, tw in (('파일', l, 50), ('홈', l + 54, 32), ('보기', l + 86, 36)):
+            uiblocks.add('ribbon:' + key, x0, top - RIBBON_TABS_H, tw, RIBBON_TABS_H)
         ry = top - RIBBON_TABS_H - RIBBON_H
         gfx.fill(l, ry, w, RIBBON_H, (245, 246, 247))
         gfx.line(l, ry, l + w, ry, (218, 219, 220))
@@ -228,6 +232,7 @@ class Paint(App):
             gfx.fill(sx, sy, 20, 20, c)
             gfx.frame(sx, sy, 20, 20, (60, 60, 60) if c == self.color else (160, 160, 160), 2 if c == self.color else 1)
             self.ui.append(((sx, sy, 20, 20), lambda c=c: setattr(self, 'color', c)))
+            uiblocks.add('color:%d' % i, sx, sy, 20, 20)
         gfx.text('색', x + 70, ry + 10, 12, (90, 90, 90), align='center')
         # 캔버스
         self.canvas = (l + 6, ry - 6 - CH * CELL, CW * CELL, CH * CELL)

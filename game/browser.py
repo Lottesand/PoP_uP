@@ -4,6 +4,7 @@ import math
 from urllib.parse import quote, unquote
 
 import gfx
+import uiblocks
 import textbox
 import apps
 import game_framework
@@ -461,8 +462,10 @@ class Browser(App):
             close = (x + tw - 26, cy - 9, 18, 18)
             gfx.symbol(GL_CLOSE, x + tw - 17, cy, 8, (90, 90, 90))
             self.tab_rects.append(((x, top - TAB_H, tw, 30), i, close))
+            uiblocks.add('tab:%d' % i, x, top - TAB_H, tw, 30)
             x += tw
         self.new_tab_rect = (x + 6, top - TAB_H + 4, 26, 26)
+        uiblocks.add('new-tab', *self.new_tab_rect)
         gfx.symbol(GL_PLUS, x + 19, top - TAB_H + 17, 11, (60, 64, 67))
 
     def draw_toolbar(self, l, y, w):
@@ -473,7 +476,9 @@ class Browser(App):
         for name, g in (('back', G_BACK), ('fwd', G_FWD), ('refresh', G_REFRESH), ('home', GL_HOME)):
             bl, bb, bw, bh = self.buttons[name]
             gfx.symbol(g, bl + bw / 2, cy, 12, (90, 90, 90) if on[name] else (190, 190, 190))
+            uiblocks.add('btn:' + name, *self.buttons[name])
         self.omnibox = (l + 148, y + 5, w - 200, 28)
+        uiblocks.add('omnibox', *self.omnibox)
         ol, ob, ow, oh = self.omnibox
         focused = textbox.focus is self.address
         if focused:
@@ -488,6 +493,7 @@ class Browser(App):
             gfx.text(shown, ol + 36, cy, 14, (60, 60, 60) if self.display_url() else (110, 110, 110))
         gfx.symbol('\uE72E' if self.online else '\uE7BA', ol + 18, cy, 12, (90, 90, 90))
         self.menu_rect = (l + w - 40, y + 4, 30, 30)
+        uiblocks.add('menu', *self.menu_rect)
         gfx.symbol(GL_MORE, l + w - 26, cy, 12, (90, 90, 90))
         gfx.line(l, y, l + w, y, (218, 220, 224))
 
@@ -572,6 +578,7 @@ class Browser(App):
             gfx.text(label, bx + 70, cy - 152, 14, (60, 64, 67), align='center')
             act = (lambda: self.google(self.search.text)) if i == 0 else (lambda: self.go('escape.guide'))
             self.links.append(((bx, cy - 170, 140, 36), act))
+            uiblocks.add('g-btn:%d' % i, bx, cy - 170, 140, 36)
             self.steps.append((bx, bx + 140, cy - 134))
         x = cx - (gfx.text_width('Google 제공 서비스:  English', 13)) / 2
         x += gfx.text('Google 제공 서비스:  ', x, cy - 210, 13, (77, 81, 86))
@@ -593,6 +600,7 @@ class Browser(App):
             gfx.text(label, bx + 40, by + 30, 12, DARK, align='center')
             if u:
                 self.links.append(((bx, by + 16, 80, 84), u))
+                uiblocks.add('shortcut:' + u, bx + 14, by + 44, 52, 52)
         # 바닥: 대한민국 + 링크들
         gfx.fill(l, b, w, 92, (242, 242, 242))
         gfx.line(l, b + 46, l + w, b + 46, (218, 220, 224))
@@ -620,6 +628,7 @@ class Browser(App):
             tw = gfx.text(label, x, top - 90, 14, (26, 115, 232) if i == 0 else (95, 99, 104))
             if i == 0:
                 gfx.fill(x - 4, top - 108, tw + 8, 3, (26, 115, 232))
+            uiblocks.add('g-tab:' + label, x - 4, top - 106, tw + 8, 30)
             if label == '동영상':
                 self.links.append(((x - 4, top - 106, tw + 8, 30), YT + '/results?search_query=' + quote(q)))
             x += tw + 30
@@ -740,6 +749,7 @@ class Browser(App):
                     gfx.round_rect(l + 12, yy - 20, side - 24, 40, 10, (242, 242, 242))
                 gfx.symbol(g, l + 40, yy, 17, YT_TEXT)
                 gfx.text(label, l + 76, yy, 14, YT_TEXT, FONT_BOLD if home else FONT)
+                uiblocks.add('yt-side:' + label, l + 12, yy - 20, side - 24, 40)
                 if i == 0:
                     self.links.append(((l + 12, yy - 20, side - 24, 40), YT))
         x0 = l + side + 16
@@ -750,6 +760,7 @@ class Browser(App):
                 tw = gfx.text_width(label, 14) + 24
                 gfx.round_rect(cx, top - 102, tw, 32, 8, YT_TEXT if i == 0 else (242, 242, 242))
                 gfx.text(label, cx + tw / 2, top - 86, 14, WHITE if i == 0 else YT_TEXT, align='center')
+                uiblocks.add('chip:' + label, cx, top - 102, tw, 32)
                 cx += tw + 12
             cols = max(1, (w - side - 32) // 300)
             cw = (w - side - 32 - (cols - 1) * 16) // cols
@@ -815,6 +826,7 @@ class Browser(App):
         sx = px + 60 + max(gfx.text_width(v[2], 15, FONT_BOLD), 90) + 20
         gfx.round_rect(sx, cy - 18, 70, 36, 18, YT_TEXT)
         gfx.text('구독', sx + 35, cy, 14, WHITE, FONT_BOLD, align='center')
+        uiblocks.add('subscribe', sx, cy - 18, 70, 36)
         bx = px + pw - 250
         gfx.round_rect(bx, cy - 18, 130, 36, 18, (242, 242, 242))
         gfx.symbol(GL_LIKE, bx + 22, cy, 15, YT_TEXT)
@@ -824,6 +836,8 @@ class Browser(App):
         gfx.round_rect(bx + 140, cy - 18, 100, 36, 18, (242, 242, 242))
         gfx.symbol(GL_SHARE, bx + 164, cy, 14, YT_TEXT)
         gfx.text('공유', bx + 182, cy, 14, YT_TEXT, FONT_BOLD)
+        uiblocks.add('like', bx, cy - 18, 130, 36)
+        uiblocks.add('share', bx + 140, cy - 18, 100, 36)
         # 설명
         cy -= 34
         gfx.round_rect(px, cy - 74, pw, 74, 12, (242, 242, 242))

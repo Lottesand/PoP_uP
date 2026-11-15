@@ -1,6 +1,7 @@
 # 창 안에 그려지는 프로그램 화면들. draw(l, b, w, h, active)는 창의 내용 영역을 받는다.
 import time
 import gfx
+import uiblocks
 import textbox
 from config import *
 
@@ -158,7 +159,9 @@ class Notepad(App):
         gfx.fill(l, b, w, h, WHITE)
         x = l + 8
         for m in ('파일(F)', '편집(E)', '서식(O)', '보기(V)', '도움말(H)'):
-            x += gfx.text(m, x, top - 10, 12) + 14
+            tw = gfx.text(m, x, top - 10, 12)
+            uiblocks.add('menu:' + m, x - 5, top - 20, tw + 10, 20)
+            x += tw + 14
         gfx.line(l, top - 20, l + w, top - 20, (240, 240, 240))
         # 글자 영역: 커서가 보이도록 위아래로 넘긴다
         self.area = (l, b + 22, w - 17, h - 42)
@@ -176,8 +179,11 @@ class Notepad(App):
         gfx.line(l, b + 22, l + w, b + 22, (220, 220, 220))
         x = l + w - 30
         pos = 'Ln %d, Col %d' % (self.box.row + 1, self.box.col + 1)
-        for part in ('UTF-8', 'Windows (CRLF)', '100%', pos):
-            x -= gfx.text(part, x, b + 11, 12, align='right') + 34
+        for part in ('UTF-8', 'Windows (CRLF)', '100%', 'pos'):
+            part = pos if part == 'pos' else part
+            tw = gfx.text(part, x, b + 11, 12, align='right')
+            uiblocks.add('status:' + ('pos' if part == pos else part), x - tw - 6, b + 2, tw + 12, 18)
+            x -= tw + 34
             gfx.line(x + 18, b + 2, x + 18, b + 20, (210, 210, 210))
         self.scrollbar = (l + w - 17, b + 22, 17, h - 42)
         gfx.fill(*self.scrollbar, (240, 240, 240))
@@ -262,15 +268,18 @@ class VSCode(App):
                     debuggun.icon().draw_fit(*self.debug_rect)
                 continue
             gfx.symbol(g, l + 24, cy, 18, (200, 200, 200) if i == 0 else (130, 130, 130))
+            uiblocks.add('activity:%d' % i, l + 8, cy - 16, 32, 32)
         gfx.fill(l + 48, b + 22, 200, h - 22, (37, 37, 38))
         gfx.text('탐색기', l + 64, top - 18, 11, (187, 187, 187))
         for i, name in enumerate(('escape.py', 'pointer.py', 'usb_key.txt')):
             if i == 0:
                 gfx.fill(l + 48, top - 54 - i * 22, 200, 22, (55, 55, 61))
             gfx.text(name, l + 76, top - 43 - i * 22, 13, (204, 204, 204))
+            uiblocks.add('file:' + name, l + 50, top - 54 - i * 22, 196, 22)
         gfx.fill(l + 248, top - 35, 140, 35, (30, 30, 30))
         gfx.fill(l + 388, top - 35, w - 388, 35, (37, 37, 38))
         gfx.text('escape.py', l + 268, top - 17, 13, WHITE)
+        uiblocks.add('tab', l + 248, top - 35, 140, 35)
         for i, row in enumerate(CODE):
             y = top - 60 - i * 20
             gfx.text(str(i + 1), l + 290, y, 13, (133, 133, 133), align='right')
@@ -282,6 +291,8 @@ class VSCode(App):
         gfx.fill(l, b, w, 22, (0, 122, 204))
         gfx.text('Python 3.15', l + w - 20, b + 11, 12, WHITE, align='right')
         gfx.text('main', l + 30, b + 11, 12, WHITE)
+        uiblocks.add('status:python', l + w - 104, b, 92, 22)
+        uiblocks.add('status:main', l + 20, b, 60, 22)
 
 
 # ==================================================================== 카카오톡
@@ -294,6 +305,10 @@ class Kakao(App):
         gfx.fill(l, b, w, h, (254, 229, 0))
         cx, cy = l + w / 2, b + h * 0.62
         gfx.icon('kakao', 48, cx - 24, cy - 24)
+        uiblocks.add('logo', cx - 28, cy - 28, 56, 56)
+        uiblocks.add('id', cx - 120, cy - 110, 240, 40)
+        uiblocks.add('pw', cx - 120, cy - 151, 240, 40)
+        uiblocks.add('login', cx - 120, cy - 200, 240, 40)
         gfx.fill(cx - 120, cy - 110, 240, 40, WHITE)
         gfx.text('카카오계정 (이메일 또는 전화번호)', cx - 110, cy - 90, 12, (170, 170, 170))
         gfx.fill(cx - 120, cy - 151, 240, 40, WHITE)
@@ -315,6 +330,8 @@ class Terminal(App):
                  'C:\\Users\\Pointer>']
         for i, ln in enumerate(lines):
             gfx.text(ln, l + 6, top - 14 - i * 18, 14, (204, 204, 204))
+            if ln:
+                uiblocks.add('line:%d' % i, l + 4, top - 23 - i * 18, gfx.text_width(ln, 14) + 6, 18)
         if active and int(time.time() * 2) % 2 == 0:
             gfx.fill(l + 8 + gfx.text_width(lines[-1], 14), top - 14 - 3 * 18 - 8, 9, 3, (204, 204, 204))
 

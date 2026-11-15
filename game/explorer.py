@@ -1,5 +1,6 @@
 # 파일 탐색기: 가상 파일 시스템(fs)을 돌아다니는 창
 import gfx
+import uiblocks
 import fs
 import shell
 from apps import App
@@ -252,6 +253,7 @@ class Explorer(App):
             if i == 0:
                 gfx.fill(x, y, tw, RIBBON_H, (25, 121, 202))
             gfx.text(tab, x + tw / 2, y + RIBBON_H / 2, 12, WHITE if i == 0 else TEXT, align='center')
+            uiblocks.add('ribbon:' + tab, x, y, tw, RIBBON_H)
             x += tw
         gfx.symbol('\uE70E', l + w - 40, y + 12, 10, TEXT_GRAY)
         gfx.symbol('\uE897', l + w - 16, y + 12, 12, ACCENT)
@@ -264,6 +266,7 @@ class Explorer(App):
         for name, g in (('back', G_BACK), ('fwd', G_FWD), ('up', G_UP)):
             bl, bb, bw, bh = self.buttons[name]
             gfx.symbol(g, bl + bw / 2, cy, 10, (60, 60, 60) if on[name] else (190, 190, 190))
+            uiblocks.add('nav-btn:' + name, bl, bb + 4, bw, bh - 8)
         gfx.symbol(G_CHEVRON_D, l + 59, cy, 7, (130, 130, 130))
         ax, aw = l + 104, w - 104 - 230
         gfx.frame(ax, y + 5, aw, 24, (217, 217, 217))
@@ -275,6 +278,7 @@ class Explorer(App):
             gfx.symbol(G_CHEVRON_R, px + 5, cy, 7, (110, 110, 110))
             tw = gfx.text(node.name, px + 14, cy, 12)
             self.crumbs.append((node, px + 10, px + 18 + tw, y + 5, y + 29))
+            uiblocks.add('crumb:%d' % len(self.crumbs), px + 10, y + 5, tw + 8, 24)
             px += tw + 20
         gfx.pop_clip()
         gfx.symbol(G_REFRESH, ax + aw - 14, cy, 10, (90, 90, 90))
@@ -282,6 +286,7 @@ class Explorer(App):
         gfx.frame(sx, y + 5, 210, 24, (217, 217, 217))
         gfx.text(self.node.name + ' 검색', sx + 8, cy, 12, (120, 120, 120))
         gfx.symbol(G_SEARCH, sx + 195, cy, 10, (90, 90, 90))
+        uiblocks.add('search', sx, y + 5, 210, 24)
 
         body_b, body_t = b + STATUS_H, y - 4
         self.floor = (l, l + w, body_b)          # 상태 표시줄 윗면: 창 안의 바닥
@@ -303,6 +308,7 @@ class Explorer(App):
         if self.selected is not None:
             status += '      1개 항목 선택함'
         gfx.text(status, l + 14, b + STATUS_H / 2, 12)
+        uiblocks.add('status', l + 8, b + 2, gfx.text_width(status, 12) + 12, STATUS_H - 4)
 
     def draw_nav(self, l, b, w, t):
         self.navs = []
@@ -322,6 +328,7 @@ class Explorer(App):
             gfx.symbol(G_CHEVRON_R, l + 12, ny, 7, (150, 150, 150))
             gfx.text(node.name, l + 50, ny, 12)
             self.navs.append((node, ny - 11, ny + 11))
+            uiblocks.add('nav:' + node.name, l + 1, ny - 11, w - 2, 22)
             ny -= 30
 
     def item_box(self, node, l, b, w, h):

@@ -2,6 +2,7 @@
 # 로그 상자 안에 버그들이 산다 (몬스터의 폴더 = fs.BREAKER, 내용 영역 = 로그 상자).
 # 다 잡으면 [켜기] 단추가 살아나고, 마우스로 누르거나 창 안에서 밟으면 인터넷이 연결된다.
 import gfx
+import uiblocks
 import apps
 import fs
 from apps import App
@@ -98,6 +99,7 @@ class Breaker(App):
         # 로그 상자
         bl, bb, bw_, bh_ = self.buttons['on']
         gfx.text('로그 (최신순)', l + 22, bb - 26, 14, BLACK)
+        uiblocks.add('label', l + 18, bb - 38, gfx.text_width('로그 (최신순)', 14) + 10, 24)
         ll, lb, lw, lh = l + 22, b + 20, w - 44, bb - 46 - (b + 20)
         gfx.fill(ll, lb, lw, lh, (130, 135, 144))
         gfx.fill(ll + 1, lb + 1, lw - 2, lh - 2, WHITE)

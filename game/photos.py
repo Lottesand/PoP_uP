@@ -1,6 +1,7 @@
 # 사진 앱: 그림판에서 저장한 그림(.png)을 연다. 하얀 칸은 투명이라 어두운 배경이 비쳐 보인다.
 # 공격 모드로 이 창에 들어와서 그림을 좌클릭하면 그 그림을 무기로 든다 (drawing.py).
 import gfx
+import uiblocks
 import apps
 from apps import App
 from config import *
@@ -44,6 +45,7 @@ class Photos(App):
         x = l + w - 28
         for g in (GL_MORE, GL_SHARE, GL_EDIT, GL_DELETE, GL_ROTATE, GL_ZOOM):
             gfx.symbol(g, x, top - TOOLBAR_H / 2, 14, BAR_TEXT)
+            uiblocks.add('tool:%d' % x, x - 18, top - TOOLBAR_H + 6, 36, TOOLBAR_H - 12)
             x -= 46
         # 그림 (칸 하나를 최대 4px로)
         area = (l + 30, b + INFO_H + 20, w - 60, h - TOOLBAR_H - INFO_H - 40)
