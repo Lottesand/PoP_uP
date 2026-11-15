@@ -207,12 +207,34 @@ def windows_logo():
     return img
 
 
+def breaker(on=True):
+    # 인터넷 차단기: 회색 판에 손잡이. 켜짐 = 빨간 손잡이 위, 꺼짐 = 초록 손잡이 아래
+    img, d = canvas()
+    d.rounded_rectangle((40, 20, 216, 236), 14, fill=(214, 218, 224), outline=(120, 126, 136), width=6)
+    d.rounded_rectangle((104, 52, 152, 204), 10, fill=(70, 74, 82))
+    if on:
+        d.rounded_rectangle((88, 56, 168, 116), 10, fill=(232, 17, 35), outline=(140, 10, 20), width=4)
+    else:
+        d.rounded_rectangle((88, 140, 168, 200), 10, fill=(19, 161, 14), outline=(10, 90, 10), width=4)
+    f = ImageFont.truetype(FONT_BOLD, 26)
+    d.text((128, 226), 'ON' if on else 'OFF', font=f, fill=(60, 60, 60), anchor='ms')
+    return img
+
+
+def breaker_on():
+    return breaker(True)
+
+
+def breaker_off():
+    return breaker(False)
+
+
 ICONS = {
     'folder': folder, 'folder_empty': folder_empty, 'explorer': explorer, 'this_pc': this_pc,
     'recycle_bin': recycle_bin, 'recycle_bin_full': recycle_bin_full, 'browser': browser,
     'notepad': notepad, 'paint': paint, 'vscode': vscode, 'kakao': kakao, 'terminal': terminal,
     'usb': usb, 'text_file': text_file, 'image_file': image_file, 'drive': drive, 'lock': lock,
-    'windows_logo': windows_logo,
+    'windows_logo': windows_logo, 'breaker_on': breaker_on, 'breaker_off': breaker_off,
 }
 
 
