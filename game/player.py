@@ -465,8 +465,8 @@ class Pointer:
             gfx.pop_clip()
 
     def draw_hud(self):
-        # 작업 표시줄 바로 위: HP 막대, 손 슬롯, Q 쿨타임, 모드
-        l, b = 12, TASKBAR_H + 10
+        # 작업 표시줄 바로 위 오른쪽: HP 막대, 손 슬롯, Q 쿨타임, 모드 (왼쪽 아래는 포인터 출발 자리)
+        l, b = W - 366, TASKBAR_H + 10
         gfx.fill(l - 6, b - 6, 360, 34, (0, 0, 0, 120))
         gfx.text('HP', l, b + 11, 12, WHITE, FONT_BOLD)
         gfx.fill(l + 26, b + 6, 200, 10, (60, 60, 60))

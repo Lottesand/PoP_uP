@@ -5,6 +5,7 @@ from config import *
 TOAST_W = 364
 SHOW = 6.0
 SLIDE = 0.25
+MAX_SHOWN = 3
 
 toasts = []
 
@@ -22,6 +23,7 @@ class Toast:
 
 def show(title, *lines, icon='explorer'):
     toasts.append(Toast(title, lines, icon))
+    del toasts[:-MAX_SHOWN]               # 너무 많이 쌓이면 오래된 것부터 지운다
 
 
 def clear():
@@ -35,7 +37,7 @@ def update(dt):
 
 
 def draw():
-    b = TASKBAR_H + 16
+    b = TASKBAR_H + 52                   # HP 막대 위
     for t in reversed(toasts):
         k = min(1.0, t.t / SLIDE, (SHOW - t.t) / SLIDE)
         l = W - 16 - TOAST_W * (0.4 + 0.6 * k) if k < 1 else W - 16 - TOAST_W
