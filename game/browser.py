@@ -226,6 +226,13 @@ class Browser(App):
         self.buttons, self.links, self.tab_rects = {}, [], []
         self.omnibox = self.search_rect = self.ysearch_rect = self.new_tab_rect = self.menu_rect = (0, 0, 0, 0)
         self.player_rect = (0, 0, 0, 0)
+        import fs
+        self.node = fs.WEB              # 구간 2 몬스터 · 크롬 공룡은 Chrome 창 페이지 영역에 산다
+        self.content = (0, 0, 0, 0)     # 페이지 영역 (몬스터의 무대)
+        self.steps = []                 # 창 안에서 밟을 수 있는 발판 (검색창 · 단추 윗면)
+
+    def platforms(self):
+        return self.steps
 
     # ---------------------------------------------------------------- 탭
     @property
@@ -401,6 +408,8 @@ class Browser(App):
         self.draw_toolbar(l, y, w)
         self.links = []
         self.search_rect = self.ysearch_rect = self.player_rect = (0, 0, 0, 0)
+        self.content = (l, b, w, y - b)
+        self.steps = []
         gfx.push_clip(l, b, w, y - b)
         url = self.url
         if not self.online:
@@ -556,12 +565,14 @@ class Browser(App):
         sw = min(584, w - 80)
         self.search_rect = (cx - sw / 2, cy - 100, sw, 46)
         self.search_pill(*self.search_rect, self.search, textbox.focus is self.search)
+        self.steps.append((cx - sw / 2 + 20, cx + sw / 2 - 20, cy - 54))
         for i, label in enumerate(('Google 검색', "I'm Feeling Lucky")):
             bx = cx - 148 + i * 156
             gfx.round_rect(bx, cy - 170, 140, 36, 4, (248, 249, 250))
             gfx.text(label, bx + 70, cy - 152, 14, (60, 64, 67), align='center')
             act = (lambda: self.google(self.search.text)) if i == 0 else (lambda: self.go('escape.guide'))
             self.links.append(((bx, cy - 170, 140, 36), act))
+            self.steps.append((bx, bx + 140, cy - 134))
         x = cx - (gfx.text_width('Google 제공 서비스:  English', 13)) / 2
         x += gfx.text('Google 제공 서비스:  ', x, cy - 210, 13, (77, 81, 86))
         gfx.text('English', x, cy - 210, 13, BLUE_LINK)
