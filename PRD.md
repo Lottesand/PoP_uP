@@ -2,7 +2,7 @@
 
 > 데스크톱 탈출 액션 플랫포머 · 2D 게임 프로그래밍 기말 프로젝트 (Python 3 · pico2d)
 > 학번 2023182014 · 김헌수
-> 자세한 그림과 표는 [`docs/PoP_uP_세부기획서.pptx`](docs/PoP_uP_세부기획서.pptx), 발표용 요약은 [`docs/PoP_uP_1차발표.pptx`](docs/PoP_uP_1차발표.pptx)에 있다.
+> 자세한 그림과 표는 [`docs/PoP_uP_세부기획서.pptx`](docs/PoP_uP_세부기획서.pptx), 발표용 요약은 [`docs/PoP_uP_1차발표.pptx`](docs/PoP_uP_1차발표.pptx), 진행 상황 · 기획 변경은 [`docs/PoP_uP_2차발표.pptx`](docs/PoP_uP_2차발표.pptx)에 있다.
 > 수치 중 **(초기값)** 표시는 플레이테스트로 조정한다.
 
 ---
