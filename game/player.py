@@ -4,7 +4,8 @@
 #   창 안쪽(내용 영역)은 뒤로 지나간다. 마지막으로 밟은 창 바로 위 층에 그려져서, 그보다 앞의 창에는 가려진다.
 # Shift ON (공격 모드): 마우스가 조준선이 되고 창들이 단단한 벽이 된다. 기본 무기는 손가락 찌르기(좌클릭).
 #   창 테두리를 세 번 찌르면 금이 가다 부서지고, 부서진 자리로 그 창 안에 들어간다.
-#   창 안에서는 그 창의 내용 영역이 무대가 되고(가장자리는 벽), 다시 Shift를 누르면 제목 표시줄 위로 튀어나온다.
+#   창 안에서는 그 창의 내용 영역이 무대가 되고(가장자리는 벽), Shift를 꺼도 창 안에 그대로 있다.
+#   나가려면 공격 모드에서 창 테두리를 안쪽에서 세 번 찔러 깬다.
 import math
 import gfx
 import sprites
@@ -16,13 +17,14 @@ CLIMB_SPEED = 240
 GRAVITY = 2700
 JUMP_SPEED = 900                # 최대 약 150px
 JUMP_CUT = 0.45                 # 점프 키를 일찍 떼면 상승 속도를 이만큼 남긴다
-POP_SPEED = 620                 # 창 밖으로 튀어나올 때 위로 솟는 속도
 SWITCH_COOLDOWN = 0.3
 GRAB_RANGE = 160
 THROW_SPEED = 1400
 THROW_GRAVITY = 600
 EAT_HEAL, EAT_COOLDOWN = 12, 8.0
 POKE_REACH, POKE_TIME, POKE_COOLDOWN, POKE_DAMAGE = 60, 0.16, 0.28, 8
+AIR_JUMPS, AIR_JUMP_SPEED = 1, 820    # 2단 점프: 공중에서 한 번 더
+DASH_SPEED, DASH_TIME, DASH_COOLDOWN = 1100, 0.14, 0.45   # 대쉬: 약 150px, 그동안 무적
 BREAK_HITS = 3                  # 창 테두리를 이만큼 찌르면 부서진다
 BUTTON_RESPAWN = 10.0
 MAX_HP = 100
@@ -80,6 +82,7 @@ class Thrown:
         self.dead = False
         self.hits = []                  # 이미 맞힌 몬스터 (같은 몬스터는 한 번만)
         self.rolling = 0.0
+        self.trail = []                 # 지난 위치 몇 개 (잔상)
 
     @property
     def damage(self):
@@ -105,6 +108,7 @@ class Thrown:
 
     def update(self, dt):
         self.age += dt
+        self.trail = ([(self.x, self.y)] + self.trail)[:4]
         l, b, w, h = self.bounds()
         if self.rolling > 0:
             # 최대화 버튼: 바닥을 굴러간다
@@ -130,13 +134,18 @@ class Thrown:
     def draw(self):
         if self.win is not None:
             gfx.push_clip(*self.win.client_rect())
-        draw_button(self.name, self.x, self.y)
+        for i, (x, y) in enumerate(self.trail[1:]):
+            s = 14 - i * 4
+            gfx.fill(int(x) // 4 * 4 - s // 2, int(y) // 4 * 4 - s // 2, s, s,
+                     (CLOSE_RED if self.name == 'close' else (180, 180, 180)) + (150 - i * 45,))
+        spin = abs(math.cos(self.age * 22))           # 동전처럼 빙글빙글 돈다
+        draw_button(self.name, self.x, self.y, 1.0, max(0.2, spin))
         if self.win is not None:
             gfx.pop_clip()
 
 
-def draw_button(name, cx, cy, scale=1.0):
-    w, h = 30 * scale, 22 * scale
+def draw_button(name, cx, cy, scale=1.0, xscale=1.0):
+    w, h = 30 * scale * xscale, 22 * scale
     l, b = cx - w / 2, cy - h / 2
     if name == 'close':
         gfx.fill(l, b, w, h, CLOSE_RED)
@@ -145,7 +154,8 @@ def draw_button(name, cx, cy, scale=1.0):
         gfx.fill(l, b, w, h, (238, 238, 238))
         c = TEXT
     gfx.frame(l, b, w, h, (90, 90, 90))
-    gfx.symbol(GLYPH[name], cx, cy, int(9 * scale), c)
+    if xscale > 0.5:
+        gfx.symbol(GLYPH[name], cx, cy, int(9 * scale), c)
 
 
 # ==================================================================== 포인터
@@ -177,6 +187,11 @@ class Pointer:
         self.poke_t = 0.0               # 찌르는 중 (남은 시간)
         self.poke_cd = 0.0
         self.poke_dir = (1.0, 0.0)
+        self.air_jumps = AIR_JUMPS      # 남은 공중 점프 (땅·사다리에 닿으면 다시 찬다)
+        self.dash_t = self.dash_cd = 0.0
+        self.dash_dir = (1.0, 0.0)
+        self.air_dash = True            # 공중에서는 대쉬 한 번 (땅에 닿으면 다시)
+        self.dash_trail = []            # 대쉬 잔상 위치
         self.aim = (W / 2, H / 2)
 
     # ---------------------------------------------------------------- 입력
@@ -195,6 +210,10 @@ class Pointer:
                 self.vy = JUMP_SPEED
                 self.ground = None
                 self.ladder = None
+            elif down and self.air_jumps > 0 and not self.dead:
+                self.air_jumps -= 1          # 2단 점프
+                self.vy = AIR_JUMP_SPEED
+                self.dash_t = 0.0
             elif not down and self.vy > 0:
                 self.vy *= JUMP_CUT
 
@@ -208,10 +227,8 @@ class Pointer:
         if self.mode == 'off':
             self.mode = 'on'
             self.ghosts = {w for w in wm.visible() if self.overlaps(w.rect())}
-        elif self.inside:
-            self.pop_out()
         else:
-            self.mode = 'off'
+            self.mode = 'off'           # 창 안이면 그대로 창 안 (마우스만 다시 윈도우 조작용)
         self.switch_cd = SWITCH_COOLDOWN
         return True
 
@@ -232,16 +249,26 @@ class Pointer:
         self.ghosts = set()
         self.set_anchor(win)
 
-    def pop_out(self):
-        win = self.win
+    def break_out(self, win, at):
+        """창 안쪽에서 테두리를 깨고 나간다: 깬 자리 바로 바깥에 선다 (공격 모드는 그대로)"""
+        cl, cb, cw, ch = win.client_rect()
         l, b, w, h = win.rect()
-        self.mode, self.win = 'off', None
-        self.x = min(max(self.x, l), l + w - PW)
-        self.y = b + h
-        self.vy = POP_SPEED
-        self.ground = None
-        self.layer = win
+        x, y = at
+        side = min((x - cl, 'left'), (cl + cw - x, 'right'), (y - cb, 'bottom'), (cb + ch - y, 'top'))[1]
+        self.win = None
+        self.ground = self.ladder = None
+        self.ghosts = {win}             # 빠져나올 때까지 그 창에 끼지 않게
         self.set_anchor(None)
+        if side == 'left':
+            self.x, self.y, self.kb = l - PW - 1, y - PH / 2, -250
+        elif side == 'right':
+            self.x, self.y, self.kb = l + w + 1, y - PH / 2, 250
+        elif side == 'bottom':
+            self.x, self.y = x - PW / 2, b - PH - 1
+        else:
+            self.x, self.y = x - PW / 2, b + h + 1
+        self.y = max(TASKBAR_H, self.y)
+        self.vy = 300
 
     def force_out(self):
         # 들어가 있던 창이 닫히거나 최소화되면 그 자리에서 밖으로 떨어진다
@@ -296,6 +323,22 @@ class Pointer:
         reach = min(POKE_REACH, d)
         return hx + self.poke_dir[0] * reach, hy + self.poke_dir[1] * reach
 
+    def dash(self, mx, my):
+        """빈손 우클릭: 조준선 쪽으로 가장 가까운 8방향 대쉬. 했으면 True"""
+        if self.mode != 'on' or self.dash_cd > 0 or self.dead or (self.ground is None and not self.air_dash):
+            return False
+        cx, cy = self.center()
+        a = round(math.atan2(my - cy, mx - cx) / (math.pi / 4)) * (math.pi / 4)
+        self.dash_dir = (round(math.cos(a), 6), round(math.sin(a), 6))
+        if abs(self.dash_dir[0]) > 0.1:
+            self.facing = 1 if self.dash_dir[0] > 0 else -1
+        self.dash_t, self.dash_cd = DASH_TIME, DASH_COOLDOWN
+        if self.ground is None:
+            self.air_dash = False
+        self.ground = self.ladder = None
+        self.dash_trail = []
+        return True
+
     def throw(self, mx, my):
         if not self.held:
             return None
@@ -304,6 +347,10 @@ class Pointer:
         d = math.hypot(dx, dy) or 1
         t = Thrown(self.held, hx, hy, dx / d * THROW_SPEED, dy / d * THROW_SPEED, self.win)
         self.held = None
+        self.kb = -dx / d * 220                    # 반동
+        self.poke_dir, self.poke_t = (dx / d, dy / d), POKE_TIME
+        if abs(dx) > 1:
+            self.facing = 1 if dx > 0 else -1
         return t
 
     def eat(self):
@@ -317,7 +364,7 @@ class Pointer:
     # ---------------------------------------------------------------- 피격
     def hurt(self, damage, from_x):
         """맞았으면 True. 무적 중이거나 이미 쓰러졌으면 무시한다"""
-        if self.invincible > 0 or self.dead or damage <= 0:
+        if self.invincible > 0 or self.dead or damage <= 0 or self.dash_t > 0:
             return False
         self.hp = max(0, self.hp - damage)
         self.invincible = INVINCIBLE
@@ -340,6 +387,11 @@ class Pointer:
         self.switch_cd = max(0.0, self.switch_cd - dt)
         self.poke_t = max(0.0, self.poke_t - dt)
         self.poke_cd = max(0.0, self.poke_cd - dt)
+        self.dash_cd = max(0.0, self.dash_cd - dt)
+        if self.ground is not None or self.ladder:
+            self.air_jumps, self.air_dash = AIR_JUMPS, True
+        self.dash_trail = ([(self.x, self.y)] + self.dash_trail)[:4] if self.dash_t > 0 else \
+            self.dash_trail[:-1]
         self.eat_cd = max(0.0, self.eat_cd - dt)
         self.fail_t = max(0.0, self.fail_t - dt)
 
@@ -365,12 +417,19 @@ class Pointer:
         if self.climb(dt, wm, move):
             return
         self.vx = move * RUN_SPEED + self.kb
+        if self.dash_t > 0:
+            # 대쉬 중에는 중력 없이 정한 방향으로만 날아간다
+            self.dash_t = max(0.0, self.dash_t - dt)
+            self.vx, self.vy = self.dash_dir[0] * DASH_SPEED, self.dash_dir[1] * DASH_SPEED
+            if self.dash_t <= 0:
+                self.vy *= 0.35             # 끝나면 살짝만 이어서 날아간다
         if self.mode == 'on' and not self.inside:
             self.move_solid(dt, wm)
             return
         prev_y = self.y
         self.x += self.vx * dt
-        self.vy -= GRAVITY * dt
+        if self.dash_t <= 0:
+            self.vy -= GRAVITY * dt
         self.y += self.vy * dt
 
         if self.inside:
@@ -472,7 +531,8 @@ class Pointer:
                 else:
                     self.x = px
         py = self.y
-        self.vy -= GRAVITY * dt
+        if self.dash_t <= 0:
+            self.vy -= GRAVITY * dt
         self.y += self.vy * dt
         self.ground = None
         if self.y <= TASKBAR_H:
@@ -518,6 +578,8 @@ class Pointer:
             return 'hurt'
         if self.poke_t > 0:
             return 'poke'
+        if self.dash_t > 0:
+            return 'jump'
         if self.ladder:
             return 'climb'
         if self.ground is None:
@@ -529,6 +591,10 @@ class Pointer:
             return                      # 무적 중 깜빡임
         if self.inside:
             gfx.push_clip(*self.win.client_rect())
+        for i, (tx, ty) in enumerate(self.dash_trail[1:]):
+            # 대쉬 잔상: 지나온 자리에 옅은 포인터
+            sprites.pointer().draw(self.mode, FACES[self.face()], 'jump', 0, tx + PW / 2, ty, self.facing < 0,
+                                   0.45 - i * 0.13)
         shake = math.sin(self.fail_t * 80) * 4 if self.fail_t > 0 else 0
         lunge = 0.0
         if self.poke_t > 0:

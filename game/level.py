@@ -37,7 +37,7 @@ def spawn():
 
 
 class Spawner:
-    """보이는 폴더 창마다 일정 시간이 지나면 버그가 왼쪽이나 오른쪽 가장자리에서 튀어나온다"""
+    """보이는 폴더 창마다 일정 시간이 지나면 버그가 네 가장자리를 돌아가며 기어 나온다"""
 
     def __init__(self):
         self.timers = {}            # 폴더 id → 다음 출현까지 남은 초
@@ -117,7 +117,8 @@ class Section:
             self.hint('attack', '공격 모드', '창이 벽이 됩니다. 좌클릭으로 창 테두리를 세 번 찌르면',
                       '부서지면서 그 창 안으로 들어갑니다.')
         if p.inside:
-            self.hint('enter', '창 안으로 들어왔습니다', 'Shift를 다시 누르면 제목 표시줄 위로 튀어나옵니다.')
+            self.hint('enter', '창 안으로 들어왔습니다', 'Shift를 꺼도 창 안에 그대로 있습니다.',
+                      '나가려면 공격 모드에서 테두리를 안쪽에서 세 번 찌르세요.')
             if any(m.win is p.win for m in game.monsters):
                 self.hint('monster', 'OS의 버그가 나타났습니다', '좌클릭: 가까운 창 버튼(─ ☐ ✕) 뜯기',
                           '우클릭: 조준한 곳으로 던지기')

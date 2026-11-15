@@ -88,17 +88,14 @@ check('falls to window floor inside', P.ground == 'floor' and abs(P.y - cb) < 1)
 # 창 벽에 막힘
 key(pm.SDLK_a); step(2.0); key(pm.SDLK_a, False)
 check('left wall blocks inside window', P.x == cl)
-# 쿨타임 0.3초
+# Shift를 꺼도 창 안에 그대로 (쿨타임 0.3초)
 pm.key_down(pm.SDLK_LSHIFT); pm.key_down(pm.SDLK_LSHIFT)
-check('switch cooldown blocks instant toggle', P.mode == 'off' and P.switch_cd > 0)
+check('shift off keeps the pointer inside', P.mode == 'off' and P.inside and P.win is win)
+check('switch cooldown blocks instant toggle', P.switch_cd > 0)
 step(0.8)
+check('still standing inside in Shift OFF', P.inside and P.ground == 'floor')
 pm.key_down(pm.SDLK_LSHIFT)
-l, b, w, h = win.rect()
-for i in range(3):
-    P.poke_cd = 0
-    pm.poke(P.x + 24, b + h - 8)
-step(0.6)
-check('break in again from title bar', P.inside)
+check('shift on again, still inside', P.mode == 'on' and P.inside)
 # 한 번만 찌른 금은 4초 뒤 아문다
 pm.open_app('documents'); other = pm.wm.active
 other.x, other.y, other.w, other.h = 1300, 300, 500, 300
@@ -116,6 +113,7 @@ pm.mouse_down(bl + 10, bb + 10)
 check('left click grabs nearby close button', P.held == 'close' and 'close' in win.torn)
 check('torn button cannot be clicked', win.hit(bl + 10, bb + 10)[0] == 'title')
 # 우클릭으로 던지기
+cl, cb, cw, ch = win.client_rect()
 pm.right_down(cl + 20, cb + 60)
 check('right click throws held button', P.held is None and len(pm.thrown) == 1 and pm.thrown[0].win is win)
 step(1.0)
@@ -130,12 +128,21 @@ check('Q eats held button: +12 HP, 8s cooldown', P.hp == 62 and P.held is None a
 # 10초 뒤 버튼 다시 생김
 step(10.2)
 check('torn buttons respawn after 10s', not win.torn)
-# Shift OFF: 제목 표시줄 위로 튀어나오기
-pm.key_down(pm.SDLK_LSHIFT)
+# 나가기: 안쪽에서 테두리를 세 번 찌르면 깨고 나간다 (오른쪽 벽)
+step(0.5)
+cl, cb, cw, ch = win.client_rect()
+P.x = cl + cw - 60; step(0.3)
+for i in range(3):
+    P.poke_cd = 0
+    pm.poke(cl + cw + 40, P.center()[1])
+    if i < 2:
+        check('inner wall cracks (%d)' % (i + 1), len(win.cracks) == i + 1 and P.inside)
 l, b, w, h = win.rect()
-check('shift off pops out above title bar', P.mode == 'off' and P.y >= b + h and P.vy > 0)
+check('third poke breaks out to the right side', not P.inside and P.mode == 'on' and P.x >= l + w)
 step(1.0)
-check('lands back on that title bar', P.ground is win and P.y == b + h)
+check('lands outside next to the window', not P.inside and P.ground is not None)
+pm.key_down(pm.SDLK_LSHIFT); step(0.4)
+check('shift off after breaking out', P.mode == 'off' and not P.inside)
 # 창 밖 공격 모드에서 Shift → 다시 OFF
 P.x, P.y, P.vy = 1600, TASKBAR_H, 0; step(0.5)
 pm.key_down(pm.SDLK_LSHIFT); step(0.4)
