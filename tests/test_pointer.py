@@ -81,7 +81,7 @@ P.poke_cd = 0
 pm.mouse_down(cl + cw / 2, cb + ch / 2)
 step(0.3)
 P.poke_cd = 0
-pm.mouse_down(cl + 10, cb + 10)
+pm.mouse_down(cl + cw / 2 + 40, cb + ch / 2 - 40)
 check('poking empty air inside a window works', P.inside and P.poke_t >= 0)
 step(1.0)
 check('falls to window floor inside', P.ground == 'floor' and abs(P.y - cb) < 1)
