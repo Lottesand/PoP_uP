@@ -43,6 +43,34 @@ check('big black square = heavy blade, slower and stronger', blob.shape == 'blad
 check('weapon length is kept in a playable range', drawing.LONG_MIN <= spear.length <= drawing.LONG_MAX
       and drawing.LONG_MIN <= blob.length <= drawing.LONG_MAX)
 
+# ---------------------------------------------------------------- 예시 그림 (그림판 없이 줍는 무기)
+import level
+backup = level.find(fs.DOCUMENTS, '사진 백업')
+samples = {n.name: n.picture for n in backup.children}
+check('photo backup has 2 sample weapons', set(samples) == {'불꽃 창.png', '얼음 망치.png'}
+      and all(p is not None for p in samples.values()))
+fire, ice = samples['불꽃 창.png'], samples['얼음 망치.png']
+check('sample 1: flame spear = fire spear', fire.shape == 'spear' and fire.element == 'fire')
+check('sample 2: ice hammer = ice blade', ice.shape == 'blade' and ice.element == 'ice')
+pm.shell.open_folder(backup); bwin = pm.wm.active
+bwin.x, bwin.y, bwin.w, bwin.h = 300, 300, 800, 460
+step(0.2)
+screenshot.shot(os.path.join(OUT, 'drawing_samples.png'))
+node = next(n for n in backup.children if n.name == '얼음 망치.png')
+pm.shell.open_node(node); swin = pm.wm.active
+check('sample opens in the photos app', isinstance(swin.app, photos.Photos) and swin.app.drawing is ice)
+pm.key_down(pm.SDLK_LSHIFT)
+P.enter(swin, (swin.x + 100, swin.y + 200)); P.invincible = 99
+step(1.0)
+pl, pb, pw, ph = swin.app.picture_rect
+pm.mouse_down(pl + pw / 2, pb + ph / 2); pm.mouse_up(pl + pw / 2, pb + ph / 2)
+check('sample picture can be picked up as a weapon', P.weapon is ice)
+P.drop_weapon()
+P.force_out()
+for win in list(pm.wm.windows):
+    pm.wm.close(win)
+step(0.3)
+
 # ---------------------------------------------------------------- 그림판에서 그리고 Ctrl+S
 pm.open_app('paint'); pwin = pm.wm.active
 pwin.x, pwin.y = 80, 200
