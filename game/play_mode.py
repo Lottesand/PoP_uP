@@ -8,13 +8,15 @@ import fs
 import shell
 import level
 import toast
-from monsters import Blast, BugWorm, Popup
+import textbox
+from monsters import BugWorm, Popup
+from fx import PokeTrail, Spark, Ring
 from config import *
 from desktop import Desktop
 from taskbar import Taskbar, group_windows
 from start_menu import StartMenu
 from os_window import WindowManager
-from player import Pointer, draw_crosshair
+from player import Pointer, draw_crosshair, POKE_DAMAGE, BREAK_HITS
 
 desktop = None
 taskbar = None
@@ -25,6 +27,7 @@ thrown = []
 monsters = []
 bullets = []
 effects = []
+spawner = None
 checkpoint = (160, TASKBAR_H)      # HP 0 → 블루스크린 → 재부팅 뒤 여기서 다시 시작
 section = None
 TUTORIAL = True                    # False면 시작 경고창 없이 (테스트용)
@@ -39,7 +42,7 @@ def open_app(key):
 
 
 def init():
-    global desktop, taskbar, start, wm, player, thrown
+    global desktop, taskbar, start, wm, player, thrown, spawner
     wm = WindowManager()
     shell.wm = wm
     shell.close_menu()
@@ -49,6 +52,7 @@ def init():
     player = Pointer(*checkpoint)
     thrown = []
     monsters[:] = level.spawn()
+    spawner = level.Spawner()
     bullets.clear()
     effects.clear()
     toast.clear()
@@ -114,8 +118,10 @@ def menu_click(mx, my):
 
 def mouse_down(mx, my):
     now = get_time()
+    textbox.set_focus(None)            # 입력란을 다시 누르면 그 프로그램이 다시 잡는다
     if player.mode == 'on':
-        player.grab(mx, my, wm)
+        if not player.grab(mx, my, wm):
+            poke(mx, my)
         return
     if menu_click(mx, my):
         return
@@ -192,6 +198,7 @@ def mouse_move(mx, my):
 def switch_mode():
     if not player.toggle(wm):
         return
+    textbox.set_focus(None)
     if player.mode == 'on':
         # 침투 모드에서는 마우스가 조준선이 된다: 열린 메뉴와 끌던 창을 놓는다
         shell.close_menu()
@@ -226,11 +233,33 @@ def key_down(key):
             wm.active.app.open(wm.active.app.selected)
 
 
+def typing_key(event):
+    """입력란에 글자를 넣는 중이면 키를 입력란으로 보낸다. 가져갔으면 True"""
+    box = textbox.focus
+    if box is None:
+        return False
+    if event.key == SDLK_ESCAPE:
+        textbox.set_focus(None)
+    elif event.key == SDLK_s and event.mod & KMOD_CTRL and box.on_save:
+        box.on_save()
+    else:
+        box.key(event.key, event.mod)
+    return True
+
+
 def handle_events():
-    for event in get_events():
+    for event in textbox.get_events():
         if event.type == SDL_QUIT:
             game_framework.quit()
+        elif event.type == SDL_TEXTINPUT:
+            if textbox.focus:
+                textbox.focus.insert(event.text)
+        elif event.type == SDL_TEXTEDITING:
+            if textbox.focus:
+                textbox.focus.compose(event.text)
         elif event.type == SDL_KEYDOWN:
+            if typing_key(event) or event.repeat:
+                continue
             key_down(event.key)
         elif event.type == SDL_KEYUP and event.key in PLAYER_KEYS:
             player.key(PLAYER_KEYS[event.key], False)
@@ -253,6 +282,12 @@ def update():
     global cursor_hidden, dead_t
     dt = min(game_framework.frame_time, 1 / 30)
     wm.update(dt)
+    box = textbox.focus
+    if box is not None:
+        # 글자를 치는 동안 포인터는 멈춘다. 입력란 주인 창이 앞에서 사라지면 입력도 끝난다
+        player.left = player.right = player.up = player.down = False
+        if wm.active is None or wm.active.app is not box.owner:
+            textbox.set_focus(None)
     player.update(dt, wm)
     if player.dead:
         dead_t += dt
@@ -266,7 +301,8 @@ def update():
     section.update(dt, sys.modules[__name__])
     toast.update(dt)
     # 창 안에서 메시지 상자의 [확인]을 밟으면 누른 것과 같다
-    if player.mode == 'on' and player.ground is not None and hasattr(player.win.app, 'stepped_by')             and player.win.app.stepped_by(player):
+    if player.inside and player.ground is not None and hasattr(player.win.app, 'stepped_by') \
+            and player.win.app.stepped_by(player):
         player.win.app.press()
     thrown[:] = [t for t in thrown if not t.dead]
     # 침투 모드에서만 실제 마우스 커서를 숨긴다 (창이 닫혀 밖으로 밀려나도 다시 보이게)
@@ -279,6 +315,37 @@ def update():
 
 
 # ---------------------------------------------------------------- 전투
+def poke(mx, my):
+    """기본 무기 찌르기: 창 안이면 몬스터를, 창 밖이면 창 테두리를 찌른다"""
+    tip = player.poke(mx, my)
+    if tip is None:
+        return
+    tx, ty = tip
+    hx, hy = player.hand()
+    layer = player.win if player.inside else player.layer
+    effects.append(PokeTrail(layer, hx, hy, tx, ty, clip=player.inside))
+    if player.inside:
+        for m in monsters:
+            if m.win is not player.win or m.dead:
+                continue                    # 다른 폴더 몬스터는 창이 없어서 위치도 없다
+            l, b, w, h = m.rect()
+            if l - 12 <= tx <= l + w + 12 and b - 12 <= ty <= b + h + 12:
+                m.hit(POKE_DAMAGE, 'poke', player.center()[0])
+                effects.append(Spark(m.win, tx, ty))
+                effects.append(Popup(m.win, *m.center(), str(POKE_DAMAGE), (255, 200, 0)))
+                break
+        return
+    win = wm.hit(tx, ty)[0]
+    if win is None or win in player.ghosts:
+        return
+    effects.append(Spark(layer, tx, ty, (120, 120, 120), clip=False))
+    if win.crack(tx, ty) >= BREAK_HITS:
+        effects.append(Ring(layer, tx, ty, 40, (60, 60, 60), clip=False))
+        win.shatter()
+        wm.focus(win)
+        player.enter(win, (tx, ty))
+
+
 def platforms(win):
     return win.app.platforms()
 
@@ -288,9 +355,10 @@ def overlap(a, b):
 
 
 def explode(win, x, y, radius, damage):
-    effects.append(Blast(win, x, y, radius))
+    effects.append(Ring(win, x, y, radius))
+    effects.append(Spark(win, x, y, (255, 140, 0), 8))
     px, py = player.center()
-    if player.mode == 'on' and player.win is win and (px - x) ** 2 + (py - y) ** 2 <= radius ** 2:
+    if player.win is win and (px - x) ** 2 + (py - y) ** 2 <= radius ** 2:
         hurt_player(damage, x)
     for m in monsters:
         if m.win is win and not m.dead:
@@ -305,7 +373,8 @@ def explode(win, x, y, radius, damage):
 def hurt_player(damage, from_x):
     if player.hurt(damage, from_x):
         px, py = player.center()
-        effects.append(Popup(player.win if player.mode == 'on' else None, px, py + 44, '-%d' % damage))
+        effects.append(Spark(player.win if player.inside else player.layer, px, py, CLOSE_RED, clip=player.inside))
+        effects.append(Popup(player.win, px, py + 44, '-%d' % damage))
         return True
     return False
 
@@ -313,18 +382,21 @@ def hurt_player(damage, from_x):
 def fight():
     for t in thrown:
         for m in monsters:
-            if not t.dead and not m.dead and m.win is t.win and m not in t.hits and overlap(t.rect(), m.rect()):
+            if t.win is None or t.dead or m.dead or m.win is not t.win or m in t.hits:
+                continue                    # 창 밖에서 던진 버튼은 몬스터(창 안에만 있음)를 못 맞힌다
+            if overlap(t.rect(), m.rect()):
                 m.hit(t.damage, t.name, t.x)
                 t.struck(m)
                 mx, my = m.center()
+                effects.append(Spark(m.win, mx, my))
                 effects.append(Popup(m.win, mx, my + 24, str(t.damage), (255, 200, 0)))
-    if player.mode != 'on' or player.dead:
+    if not player.inside or player.dead:
         return
     body = (player.x, player.y, 48, 64)
     for m in monsters:
         if m.win is player.win and not m.dead and m.contact_damage and overlap(body, m.rect()):
             if hurt_player(m.contact_damage, m.center()[0]) and isinstance(m, BugWorm):
-                m.bounce()
+                m.bounce(player.center())
     for d in bullets:
         if d.win is player.win and overlap(body, d.rect()):
             d.dead = True
@@ -333,6 +405,7 @@ def fight():
 
 def update_world(dt):
     game = sys.modules[__name__]
+    spawner.update(dt, game)
     for m in monsters:
         m.win = level.window_for(m.folder, wm)
         if m.win is not None:
