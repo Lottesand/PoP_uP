@@ -18,7 +18,7 @@ def step(sec):
     for _ in range(max(1, int(sec * 60))):
         pm.update(); clear_canvas(); pm.render()
 P = pm.player
-check('monsters placed in 5 folders', len(pm.monsters) == 17)
+check('monsters placed in 5 folders + the breaker log', len(pm.monsters) == 17 + len(pm.level.BREAKER_BUGS))
 pm.open_app('documents'); win = pm.wm.active
 win.x, win.y, win.w, win.h = 300, 120, 1000, 600
 step(0.5)

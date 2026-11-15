@@ -49,20 +49,46 @@ win.app.go(level.find(fs.DOCUMENTS, '숨겨진 폴더')); win.app.go(level.find(
 step(0.3)
 check('설정 folder shows breaker and its guards', any(n is fs.BREAKER for n, r in win.app.items)
       and sum(1 for m in pm.monsters if m.win is win) >= 4)
-node, (il, ib, iw, ih) = next(x for x in win.app.items if x[0] is fs.BREAKER)
-for m in pm.monsters:
-    if m.win is win: m.stun = 99
-l, b, w, h = win.rect()
-P.x, P.y, P.vy, P.ground, P.switch_cd = il + iw / 2 - 24, b + h, 0, win, 0
-pm.key_down(pm.SDLK_LSHIFT)
-for i in range(3):
-    P.poke_cd = 0
-    pm.poke(P.x + 24, b + h - 8)
+import breaker
+check('breaker is an exe with the exe icon', fs.BREAKER.name.endswith('.exe') and fs.BREAKER.icon == 'exe')
+shell.open_node(fs.BREAKER); step(0.3)
+bwin = pm.wm.active
+app = bwin.app
+check('opening it shows the breaker program', isinstance(app, breaker.Breaker) and bwin.app.title == '인터넷 차단기')
+guards = [m for m in pm.monsters if m.folder is fs.BREAKER]
+check('bugs live inside the log box', len(guards) == len(level.BREAKER_BUGS) and all(m.win is bwin for m in guards))
+cl, cb, cw, ch = app.content
+check('log box is the monsters stage', all(cl <= m.rect()[0] and m.rect()[0] + m.w <= cl + cw for m in guards))
+screenshot.shot(os.path.join(OUT, '10_breaker.png'))
+l_, b_, w_, h_ = app.buttons['on']
+pm.mouse_down(l_ + 5, b_ + 5); pm.mouse_up(l_ + 5, b_ + 5); step(0.1)
+check('[켜기] is locked while bugs remain', not app.ready and not apps.Browser.online)
+for m in guards[:-1]:
+    m.hit(999, 'poke', 0)
+step(0.1)
+check('kills are logged newest first', app.log[0] == '[제거] 버그 제거됨 (3/4)' and not app.ready)
+guards[-1].hit(999, 'poke', 0)
+step(0.1)
+check('all bugs dead -> [켜기] unlocked', app.ready and app.enabled('on') and not app.enabled('off'))
+# 창 안에 들어가서 [켜기]를 밟는다
+P.enter(bwin, (l_ + 20, b_ + 80))
+P.x, P.y, P.vy = l_ + 30, b_ + 120, 0
 step(1.0)
-check('landing on the breaker turns it off -> clear', pm.section.state == 'clear' and fs.BREAKER.icon == 'breaker_off')
+check('stepping on [켜기] inside the window -> section clear', P.inside and pm.section.state == 'clear')
 check('online: taskbar and chrome', pm.taskbar.online and apps.Browser.online)
 check('clear dialog shown', pm.wm.active.app.title == '구간 1 클리어')
-screenshot.shot(os.path.join(OUT, '10_clear.png'))
+screenshot.shot(os.path.join(OUT, '11_clear.png'))
+check('status turns green: connected', app.log[0].startswith('[해제]') and app.enabled('off') and not app.enabled('on'))
+pm.shell.close(pm.wm.active.app); step(0.1)
+l_, b_, w_, h_ = app.buttons['off']
+app.mouse_down(l_ + 5, b_ + 5, 0)
+check('[끄기] blocks the internet again', not apps.Browser.online and not pm.taskbar.online)
+step(0.1)
+check('still standing on [켜기] presses it again', apps.Browser.online)
+app.mouse_down(l_ + 5, b_ + 5, 0)
+l_, b_, w_, h_ = app.buttons['on']
+app.mouse_down(l_ + 5, b_ + 5, 0); step(0.1)
+check('[켜기] by mouse reconnects', apps.Browser.online and pm.taskbar.online)
 close_canvas()
 print('%d/%d passed' % (sum(ok), len(ok)))
 sys.exit(0 if all(ok) else 1)
