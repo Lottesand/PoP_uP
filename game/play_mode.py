@@ -2,6 +2,7 @@
 from pico2d import *
 
 import sys
+import math
 import random
 import pico2d.pico2d
 import game_framework
@@ -13,7 +14,7 @@ import toast
 import textbox
 import uiblocks
 from monsters import BugWorm, Popup
-from fx import PokeTrail, Spark, Ring, Mote, ElementBurst
+from fx import PokeTrail, Spark, Ring, Mote, ElementBurst, Heal
 from config import *
 from desktop import Desktop
 from taskbar import Taskbar, group_windows
@@ -228,7 +229,12 @@ def key_down(key):
     elif key == SDLK_e:
         player.drop_weapon()
     elif key == SDLK_q:
-        player.eat()
+        held = player.held
+        if player.eat():
+            heal_fx(player.hp - player.heal_from, True)
+        elif held and player.eat_cd > 0:
+            px, py = player.center()
+            effects.append(Popup(player.win, px, py + 50, '%d초 뒤에' % math.ceil(player.eat_cd), (200, 200, 200), 14))
     elif key == SDLK_ESCAPE:
         if shell.menu or start.open:
             shell.close_menu()
@@ -367,6 +373,22 @@ def grab_block(mx, my):
     section.hint('block', 'UI 조각을 뜯었습니다', '어느 프로그램이든 단추 · 메뉴 · 탭 같은 조각은 뜯어 들 수 있습니다.',
                  '우클릭: 던지기 (클수록 아픔)   Q: 먹어서 HP 회복')
     return True
+
+
+def heal(amount, big=True):
+    """포인터 HP 회복 + 이펙트 (풀 속성 그림 무기 등에서 부른다)"""
+    got = player.heal(amount)
+    if got > 0:
+        heal_fx(got, big)
+    return got
+
+
+def heal_fx(amount, big=True):
+    layer = player.win if player.inside else player.layer
+    effects.append(Heal(layer, player, big, clip=player.inside))
+    px, py = player.center()
+    effects.append(Popup(player.win if player.inside else None, px, py + 52, '+%d' % amount, (60, 220, 90),
+                         22 if big else 15))
 
 
 def take_picture(mx, my):

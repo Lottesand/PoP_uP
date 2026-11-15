@@ -197,3 +197,64 @@ class Ring(Effect):
         if k < 0.3:
             s = snap(self.r * 0.5 * (1 - k / 0.3)) + BLOCK
             gfx.fill(x - s, y - s, 2 * s, 2 * s, (255, 220, 120))
+
+
+class Heal(Effect):
+    """회복: 발밑에서 초록 고리가 퍼지고, 빛 기둥이 솟고, 테두리 있는 초록 + 십자들이 몸을 따라 떠오르며 반짝인다.
+    target(포인터)을 따라 움직인다. big = 버튼 먹기, 작으면 풀 속성 무기의 조금 회복"""
+    life = 0.9
+    GREEN, LIGHT, DARK = (70, 225, 100), (200, 255, 210), (20, 120, 50)
+
+    def __init__(self, win, target, big=True, clip=True):
+        super().__init__(win, clip)
+        self.target, self.big = target, big
+        n = 6 if big else 2
+        self.crosses = [(-36 + 72 * (i + 0.5) / n + random.uniform(-6, 6), random.uniform(0, 0.3),
+                         2 if big and i % 2 == 0 else 1) for i in range(n)]
+        self.beams = [random.uniform(-26, 26) for _ in range(4 if big else 0)]
+        self.sparks = [(random.uniform(0, math.pi * 2), random.uniform(0.6, 1.0)) for _ in range(8 if big else 4)]
+        if not big:
+            self.life = 0.6
+
+    def cross(self, x, y, s, a, light):
+        """테두리(진한 초록) 있는 + : 하얀 창 위에서도 보이게"""
+        for dx, dy, w, h in ((-s, 0, s * 3, s), (0, -s, s, s * 3)):
+            gfx.fill(x + dx - BLOCK, y + dy - BLOCK, w + BLOCK * 2, h + BLOCK * 2, self.DARK + (a,))
+        c = self.LIGHT if light else self.GREEN
+        for dx, dy, w, h in ((-s, 0, s * 3, s), (0, -s, s, s * 3)):
+            gfx.fill(x + dx, y + dy, w, h, c + (a,))
+
+    def paint(self, k):
+        px, py = self.target.center()
+        feet = self.target.y
+        if self.big:
+            # 발밑 고리: 납작하게 퍼진다 (앞쪽 진하게, 뒤쪽 옅게)
+            r = snap(16 + 44 * k)
+            a = int(240 * (1 - k))
+            for dx in range(-r, r + 1, BLOCK):
+                h = int((1 - (dx / max(1, r)) ** 2) ** 0.5 * r * 0.28) // BLOCK * BLOCK
+                gfx.fill(snap(px + dx), snap(feet - h), BLOCK, BLOCK, self.GREEN + (a,))
+                gfx.fill(snap(px + dx), snap(feet + h), BLOCK, BLOCK, self.LIGHT + (a // 2,))
+            # 빛 기둥: 발밑에서 위로 솟았다가 사라진다
+            if k < 0.6:
+                t = k / 0.6
+                for i, ox in enumerate(self.beams):
+                    top = 30 + 70 * min(1.0, t * 1.6)
+                    a = int(170 * (1 - t))
+                    for y in range(0, int(top), BLOCK):
+                        fade = 1 - y / top
+                        gfx.fill(snap(px + ox), snap(feet + y), BLOCK, BLOCK, self.LIGHT + (int(a * fade),))
+        # 떠오르는 + 십자
+        for ox, delay, size in self.crosses:
+            t = (k - delay) / (1 - delay)
+            if not 0 <= t <= 1:
+                continue
+            x, y = snap(px + ox + math.sin(t * 6 + ox) * 4), snap(py - 6 + 80 * t)
+            self.cross(x, y, BLOCK * size, int(255 * min(1.0, (1 - t) * 1.6)), t < 0.2)
+        # 반짝이
+        for ang, speed in self.sparks:
+            d = 12 + 46 * k * speed
+            if int(k * 20 + ang * 3) % 3:
+                x, y = snap(px + math.cos(ang) * d), snap(py + math.sin(ang) * d)
+                gfx.fill(x, y, BLOCK, BLOCK, (255, 255, 255, int(255 * (1 - k))))
+                gfx.fill(x + BLOCK, y, BLOCK, BLOCK, self.GREEN + (int(200 * (1 - k)),))

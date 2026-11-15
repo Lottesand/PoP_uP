@@ -183,8 +183,7 @@ class Drawing:
         elif e == 'ice':
             monster.slow = 2.0
         elif e == 'leaf':
-            import player as pl
-            game.player.hp = min(pl.MAX_HP, game.player.hp + 2)
+            game.heal(2, big=False)
         elif e == 'shock':
             monster.stun = max(monster.stun, 1.0)
         elif e == 'heavy':

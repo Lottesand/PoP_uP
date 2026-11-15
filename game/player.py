@@ -199,7 +199,9 @@ class Pointer:
         self.dash_speed = DASH_SPEED
         self.dash_power = 0             # F5 대쉬: 지나가며 닿은 적에게 주는 데미지
         self.dash_hits = []
-        self.pull = (0.0, 0.0)          # 블랙홀이 끌어당기는 속도 (매 프레임 새로 정해진다, 사다리에선 무시)
+        self.pull = (0.0, 0.0)
+        self.heal_flash = 0.0           # 회복한 뒤 HP 막대가 반짝이는 남은 시간
+        self.heal_from = MAX_HP         # 회복하기 전 HP (늘어난 칸을 반짝이게)          # 블랙홀이 끌어당기는 속도 (매 프레임 새로 정해진다, 사다리에선 무시)
         self.swing_t = self.swing_len = self.swing_cd = 0.0
         self.swing_from = self.swing_to = 0.0
         self.swing_hits = []            # 이번 휘두르기에 이미 맞힌 몬스터
@@ -607,11 +609,22 @@ class Pointer:
             self.facing = 1 if dx > 0 else -1
         return t
 
+    def heal(self, amount):
+        """HP 회복. 실제로 늘어난 양을 돌려준다 (HUD 막대가 반짝인다)"""
+        if self.dead:
+            return 0
+        before = self.hp
+        self.hp = min(MAX_HP, self.hp + amount)
+        if self.hp > before:
+            self.heal_from = before if self.heal_flash <= 0 else min(self.heal_from, before)
+            self.heal_flash = 0.6
+        return self.hp - before
+
     def eat(self):
         if not self.held or self.eat_cd > 0:
             return False
         self.held = None
-        self.hp = min(MAX_HP, self.hp + EAT_HEAL)
+        self.heal(EAT_HEAL)
         self.eat_cd = EAT_COOLDOWN
         return True
 
@@ -656,6 +669,7 @@ class Pointer:
         self.dash_trail = ([(self.x, self.y)] + self.dash_trail)[:4] if self.dash_t > 0 else \
             self.dash_trail[:-1]
         self.eat_cd = max(0.0, self.eat_cd - dt)
+        self.heal_flash = max(0.0, self.heal_flash - dt)
         self.fail_t = max(0.0, self.fail_t - dt)
 
         visible = wm.visible()
@@ -891,6 +905,13 @@ class Pointer:
         gfx.fill(l + 26, b + 6, 200, 10, (60, 60, 60))
         k = self.hp / MAX_HP
         gfx.fill(l + 26, b + 6, int(200 * k), 10, (19, 161, 14) if k > 0.3 else CLOSE_RED)
+        if self.heal_flash > 0:
+            # 회복한 칸만 하양 ↔ 연두로 반짝이고, 막대 테두리가 초록으로 빛난다
+            k0 = self.heal_from / MAX_HP
+            blink = int(self.heal_flash * 16) % 2
+            gfx.fill(l + 26 + int(200 * k0), b + 6, int(200 * (k - k0)), 10,
+                     (255, 255, 255) if blink else (150, 255, 160))
+            gfx.frame(l + 24, b + 4, 204, 14, (90, 255, 120, int(255 * min(1.0, self.heal_flash / 0.3))), 2)
         sx = l + 238
         gfx.frame(sx, b, 34, 22, (200, 200, 200))
         if self.held:
