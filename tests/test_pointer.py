@@ -10,7 +10,7 @@ import gfx, fs, shell, game_framework, play_mode as pm
 import player as pl
 from config import *
 
-open_canvas(W, H); hide_lattice(); gfx.init(); pm.TUTORIAL = False; pm.init()
+open_canvas(W, H); hide_lattice(); gfx.init(); pm.TUTORIAL = False; pm.level.SPAWNING = False; pm.init()
 ok = []
 game_framework.frame_time = 1 / 60
 
@@ -63,10 +63,26 @@ check('rides along when window moves', P.y == 200 and P.ground is win)
 # 다른 창이 위를 덮으면 그 부분은 못 밟음
 plats = pl.os_platforms(pm.wm)
 check('title bar is a platform', any(o is win for *_, o in plats))
-# Shift ON: 발밑의 창으로 들어가기
-pm.key_down(pm.SDLK_LSHIFT); step(0.1)
+# Shift ON: 공격 모드. 아직 창 밖이고 창은 벽이 된다 (제목 표시줄 위에 그대로 서 있다)
+pm.key_down(pm.SDLK_LSHIFT); step(0.3)
+check('shift on = attack mode, still outside on title bar', P.mode == 'on' and not P.inside and P.ground is win)
+# 발밑 창 테두리를 세 번 찌르면 금이 가다 부서지고 그 자리로 들어간다
+l, b, w, h = win.rect()
+cracks = []
+for i in range(3):
+    P.poke_cd = 0
+    pm.poke(P.x + 24, b + h - 8)
+    cracks.append(len(win.cracks))
+check('pokes crack the border 1, 2 then break in', cracks[:2] == [1, 2] and P.inside and P.win is win
+      and win.hole is not None and not win.cracks)
 cl, cb, cw, ch = win.client_rect()
-check('shift enters window under feet', P.mode == 'on' and P.win is win and cl <= P.x <= cl + cw - pl.PW)
+# 들어간 뒤 허공을 찔러도 멈추지 않는다 (몬스터가 없는 창, 다른 폴더 몬스터는 창이 없음)
+P.poke_cd = 0
+pm.mouse_down(cl + cw / 2, cb + ch / 2)
+step(0.3)
+P.poke_cd = 0
+pm.mouse_down(cl + 10, cb + 10)
+check('poking empty air inside a window works', P.inside and P.poke_t >= 0)
 step(1.0)
 check('falls to window floor inside', P.ground == 'floor' and abs(P.y - cb) < 1)
 # 창 벽에 막힘
@@ -76,7 +92,20 @@ check('left wall blocks inside window', P.x == cl)
 pm.key_down(pm.SDLK_LSHIFT); pm.key_down(pm.SDLK_LSHIFT)
 check('switch cooldown blocks instant toggle', P.mode == 'off' and P.switch_cd > 0)
 step(0.8)
-pm.key_down(pm.SDLK_LSHIFT); step(0.6)
+pm.key_down(pm.SDLK_LSHIFT)
+l, b, w, h = win.rect()
+for i in range(3):
+    P.poke_cd = 0
+    pm.poke(P.x + 24, b + h - 8)
+step(0.6)
+check('break in again from title bar', P.inside)
+# 한 번만 찌른 금은 4초 뒤 아문다
+pm.open_app('documents'); other = pm.wm.active
+other.x, other.y, other.w, other.h = 1300, 300, 500, 300
+other.crack(1310, 400)
+step(4.2)
+check('single crack heals after 4s', not other.cracks)
+pm.wm.close(other); pm.wm.focus(win); step(0.1)
 # 버튼 뜯기: 범위 밖이면 실패
 win.x, win.y, win.w, win.h = 100, 120, 600, 160; step(0.2)
 name, bl, bb, bw, bh = win.caption_buttons()[0]       # close (오른쪽 끝)
@@ -107,14 +136,38 @@ l, b, w, h = win.rect()
 check('shift off pops out above title bar', P.mode == 'off' and P.y >= b + h and P.vy > 0)
 step(1.0)
 check('lands back on that title bar', P.ground is win and P.y == b + h)
-# 창 위가 아닌 곳에서 Shift → 실패
+# 창 밖 공격 모드에서 Shift → 다시 OFF
 P.x, P.y, P.vy = 1600, TASKBAR_H, 0; step(0.5)
+pm.key_down(pm.SDLK_LSHIFT); step(0.4)
+check('attack mode anywhere', P.mode == 'on' and not P.inside)
 pm.key_down(pm.SDLK_LSHIFT)
-check('shift with no window fails', P.mode == 'off' and P.fail_t > 0)
-# 창 안에 있는데 창이 닫히면 밖으로 떨어짐
-P.x, P.y = win.x + 100, win.y + 20; step(0.0)
-pm.key_down(pm.SDLK_LSHIFT); step(0.1)
-check('enter by overlapping', P.mode == 'on')
+check('shift again leaves attack mode', P.mode == 'off')
+step(0.4)
+# Shift ON 순간 겹쳐 있던 창은 빠져나올 때까지 벽이 아니고, 찔러도 안 부서진다
+P.x, P.y, P.vy = win.x + 100, win.y + 20, 0
+pm.key_down(pm.SDLK_LSHIFT)
+check('window overlapping at shift is passable', win in P.ghosts)
+P.poke_cd = 0
+pm.poke(P.x + 24, P.y + 30)
+check('poking that window does nothing', not win.cracks and not P.inside)
+step(1.5)
+check('falls through it to taskbar', P.ground == 'taskbar' and win not in P.ghosts)
+# 공격 모드에서 창은 벽: 옆에서 걸어가면 막힌다
+l, b, w, h = win.rect()
+win.y = TASKBAR_H
+l, b, w, h = win.rect()
+P.x = l - pl.PW - 30; step(0.1)
+key(pm.SDLK_d); step(0.6); key(pm.SDLK_d, False)
+check('window is a wall in attack mode', abs(P.x - (l - pl.PW)) < 1)
+# 옆에서 찔러 들어간 뒤 창이 닫히면 밖으로 떨어짐
+for i in range(3):
+    P.poke_cd = 0
+    pm.poke(l + 5, P.y + 40)
+check('break in from the side', P.inside and P.win is win)
+# 창 밖 공격 모드에서 버튼을 던져도 멈추지 않는다 (창 없는 몬스터와 부딪히지 않음)
+pm.thrown.append(pl.Thrown('close', 900, 300, 300, 0, None))
+step(0.3)
+check('throwing outside windows works', True)
 pm.wm.close(win); step(1.5)
 check('window closed -> forced out and falls to taskbar', P.mode == 'off' and P.ground == 'taskbar')
 # 앞 창이 덮은 제목 표시줄은 밟을 수 없다
@@ -128,7 +181,7 @@ check('covered part of title bar is not a platform', spans == [(350, 600)])
 clear_canvas(); pm.render()
 import screenshot
 P.x, P.y = 400, a.y + 30
-pm.key_down(pm.SDLK_LSHIFT) if P.switch_cd == 0 else None
+P.enter(a)
 step(0.6)
 pm.mouse_move(560, 250)
 screenshot.shot(os.path.join(OUT, '5_player_inside.png'))

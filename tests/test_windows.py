@@ -8,7 +8,7 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else tempfile.mkdtemp()
 from pico2d import open_canvas, close_canvas, hide_lattice
 import gfx, play_mode as pm
 from config import *
-open_canvas(W, H); hide_lattice(); gfx.init(); pm.TUTORIAL = False; pm.init()
+open_canvas(W, H); hide_lattice(); gfx.init(); pm.TUTORIAL = False; pm.level.SPAWNING = False; pm.init()
 import pico2d.pico2d as p2
 t = [100.0]
 p2.get_time = lambda: t[0]

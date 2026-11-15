@@ -63,7 +63,7 @@ def main(out):
     p = play_mode.player
     l, b, w, h = win.rect()
     p.x, p.y, p.ground = l + w - 200, b + h, win
-    play_mode.switch_mode()
+    p.enter(win)
     name, bl, bb, bw, bh = win.caption_buttons()[0]
     play_mode.mouse_down(bl + 10, bb + 10)             # 들어가자마자 (버튼과 가까울 때) 뜯기
     play_mode.game_framework.frame_time = 1 / 60
@@ -83,7 +83,7 @@ def main(out):
         play_mode.render()
     l, b, w, h = win.rect()
     p.x, p.y, p.switch_cd = l + 120, b + 40, 0
-    play_mode.switch_mode()
+    p.enter(win)
     p.held = 'close'
     for _ in range(60):
         play_mode.update()

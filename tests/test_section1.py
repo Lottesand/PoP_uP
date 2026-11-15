@@ -21,13 +21,20 @@ dlg = pm.wm.active
 check('starts with warning dialog near the pointer', dlg.app.kind == 'warning' and pm.section.state == 'warning')
 screenshot.shot(os.path.join(OUT, '9_start.png'))
 # 걸어가서 겹친 뒤 Shift → 창 안 → [확인] 위로 점프
+dl, db, dw, dh = dlg.rect()
 pm.key_down(pm.SDLK_d)
 for _ in range(200):
     pm.update()
-    if P.window_to_enter(pm.wm) is dlg: break
+    if P.x + 48 >= dl - 30: break
 pm.player.key('right', False)
-pm.key_down(pm.SDLK_LSHIFT); step(0.6)
-check('entered the warning dialog', P.mode == 'on' and P.win is dlg)
+pm.key_down(pm.SDLK_LSHIFT)
+step(0.5)
+check('attack mode: dialog is a wall', P.x + 48 <= dl + 1)
+for i in range(3):
+    P.poke_cd = 0
+    pm.poke(dl + 6, P.y + 40)
+step(0.6)
+check('broke into the warning dialog', P.mode == 'on' and P.win is dlg)
 bl, bb, bw, bh = dlg.app.button
 P.x = bl + 10; step(0.1)
 pm.key_down(pm.SDLK_SPACE); step(0.8); pm.player.key('jump', False); step(0.3)
@@ -41,13 +48,17 @@ win.x, win.y, win.w, win.h = 260, 60, 900, 520
 win.app.go(level.find(fs.DOCUMENTS, '숨겨진 폴더')); win.app.go(level.find(fs.DOCUMENTS, '숨겨진 폴더', '설정'))
 step(0.3)
 check('설정 folder shows breaker and its guards', any(n is fs.BREAKER for n, r in win.app.items)
-      and sum(1 for m in pm.monsters if m.win is win) == 3)
+      and sum(1 for m in pm.monsters if m.win is win) >= 4)
 node, (il, ib, iw, ih) = next(x for x in win.app.items if x[0] is fs.BREAKER)
 for m in pm.monsters:
     if m.win is win: m.stun = 99
 l, b, w, h = win.rect()
 P.x, P.y, P.vy, P.ground, P.switch_cd = il + iw / 2 - 24, b + h, 0, win, 0
-pm.key_down(pm.SDLK_LSHIFT); step(1.0)
+pm.key_down(pm.SDLK_LSHIFT)
+for i in range(3):
+    P.poke_cd = 0
+    pm.poke(P.x + 24, b + h - 8)
+step(1.0)
 check('landing on the breaker turns it off -> clear', pm.section.state == 'clear' and fs.BREAKER.icon == 'breaker_off')
 check('online: taskbar and chrome', pm.taskbar.online and apps.Browser.online)
 check('clear dialog shown', pm.wm.active.app.title == '구간 1 클리어')

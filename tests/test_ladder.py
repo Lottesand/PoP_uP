@@ -8,7 +8,7 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else tempfile.mkdtemp()
 from pico2d import open_canvas, close_canvas, hide_lattice, clear_canvas
 import gfx, game_framework, play_mode as pm
 from config import *
-open_canvas(W, H); hide_lattice(); gfx.init(); pm.TUTORIAL = False; pm.init()
+open_canvas(W, H); hide_lattice(); gfx.init(); pm.TUTORIAL = False; pm.level.SPAWNING = False; pm.init()
 game_framework.frame_time = 1 / 60
 ok = []
 def check(n, c): ok.append(bool(c)); print(('PASS ' if c else 'FAIL ') + n)
@@ -28,7 +28,7 @@ check('OFF: climbs window scrollbar to its top', P.ladder is not None and abs(P.
 pm.player.key('up', False); pm.key_down(pm.SDLK_SPACE); step(1.0); pm.player.key('jump', False); step(0.5)
 check('jump off ladder top lands on title bar', P.ground is win)
 # ON: 창 안 바닥에서 스크롤바 타고 위로 → 닫기 버튼에 닿음
-P.x = sl - 30; pm.key_down(pm.SDLK_LSHIFT); step(1.5)
+P.x = sl - 30; P.enter(win); step(1.5)
 check('inside window on floor', P.mode == 'on' and P.ground == 'floor')
 P.x = sl - 20; step(0.1)
 pm.key_down(pm.SDLK_w); step(3.0); pm.player.key('up', False)

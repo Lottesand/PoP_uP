@@ -14,7 +14,7 @@ from PIL import Image
 from config import *
 open_canvas(W, H); hide_lattice(); gfx.init()
 gf.frame_time = 1 / 60
-pm.TUTORIAL = False; gf.stack = [pm]; pm.init()
+pm.TUTORIAL = False; pm.level.SPAWNING = False; gf.stack = [pm]; pm.init()
 ok = []
 def check(n, c): ok.append(bool(c)); print(('PASS ' if c else 'FAIL ') + n)
 def shot(mod, name):

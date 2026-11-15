@@ -10,7 +10,7 @@ import gfx, fs, shell, play_mode as pm
 import desktop as dk
 from config import *
 
-open_canvas(W, H); hide_lattice(); gfx.init(); pm.TUTORIAL = False; pm.init()
+open_canvas(W, H); hide_lattice(); gfx.init(); pm.TUTORIAL = False; pm.level.SPAWNING = False; pm.init()
 t = [100.0]
 pm.get_time = lambda: t[0]
 ok = []
