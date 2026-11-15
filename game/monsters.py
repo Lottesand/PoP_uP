@@ -352,8 +352,8 @@ class Bomber(Monster):
 class Popup:
     """맞은 자리에서 떠오르는 데미지 숫자"""
 
-    def __init__(self, win, x, y, text, color=CLOSE_RED):
-        self.win, self.x, self.y, self.text, self.color = win, x, y, text, color
+    def __init__(self, win, x, y, text, color=CLOSE_RED, size=16):
+        self.win, self.x, self.y, self.text, self.color, self.size = win, x, y, text, color, size
         self.t = 0.0
         self.dead = False
 
@@ -366,8 +366,10 @@ class Popup:
         a = int(255 * min(1.0, (0.7 - self.t) / 0.3))
         if self.win is not None:
             gfx.push_clip(*self.win.client_rect())
-        gfx.text(self.text, self.x + 1, self.y - 1, 16, (0, 0, 0, a // 2), FONT_BOLD, align='center')
-        gfx.text(self.text, self.x, self.y, 16, self.color + (a,), FONT_BOLD, align='center')
+        pop = 1.6 - min(0.6, self.t * 6)            # 처음에 크게 튀어나왔다가 줄어든다
+        size = int(self.size * pop)
+        gfx.text(self.text, self.x + 2, self.y - 2, size, (0, 0, 0, a // 2), FONT_BOLD, align='center')
+        gfx.text(self.text, self.x, self.y, size, self.color + (a,), FONT_BOLD, align='center')
         if self.win is not None:
             gfx.pop_clip()
 

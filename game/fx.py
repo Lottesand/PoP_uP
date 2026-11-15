@@ -37,23 +37,36 @@ class Effect:
 
 
 class PokeTrail(Effect):
-    """찌르기: 손에서 찌른 끝까지 잠깐 남는 굵은 선, 끝에 작은 십자"""
-    life = 0.1
+    """찌르기 (평타): 손에서 끝까지 두 줄 굵기 궤적 + 끝에서 터지는 클릭 표시(네모가 커지고 네 모서리로 선이 튐)"""
+    life = 0.16
 
     def __init__(self, win, x0, y0, x1, y1, clip=True):
         super().__init__(win, clip)
         self.a, self.b = (x0, y0), (x1, y1)
+        d = math.hypot(x1 - x0, y1 - y0) or 1
+        self.n = ((y0 - y1) / d, (x1 - x0) / d)        # 궤적에 수직인 방향 (두 줄 굵기)
 
     def paint(self, k):
         (x0, y0), (x1, y1) = self.a, self.b
-        n = max(1, int(math.hypot(x1 - x0, y1 - y0) / BLOCK))
-        start = int(n * k)                      # 손 쪽부터 사라진다
-        for i in range(start, n + 1):
-            x, y = x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n
-            gfx.fill(snap(x), snap(y), BLOCK, BLOCK, WHITE)
-            gfx.frame(snap(x) - 1, snap(y) - 1, BLOCK + 2, BLOCK + 2, ACCENT)
-        for dx, dy in ((0, 0), (BLOCK, 0), (-BLOCK, 0), (0, BLOCK), (0, -BLOCK)):
-            gfx.fill(snap(x1) + dx, snap(y1) + dy, BLOCK, BLOCK, ACCENT)
+        if k < 0.6:
+            n = max(1, int(math.hypot(x1 - x0, y1 - y0) / BLOCK))
+            start = int(n * k / 0.6)               # 손 쪽부터 사라진다
+            for i in range(start, n + 1):
+                x, y = x0 + (x1 - x0) * i / n, y0 + (y1 - y0) * i / n
+                for side in (0, 1):
+                    sx, sy = x + self.n[0] * BLOCK * side, y + self.n[1] * BLOCK * side
+                    gfx.fill(snap(sx), snap(sy), BLOCK, BLOCK, WHITE if i > n * 0.6 else ACCENT_LIGHT)
+        # 끝: 클릭 표시
+        cx, cy = snap(x1), snap(y1)
+        r = snap(6 + 18 * k) + BLOCK
+        gfx.frame(cx - r, cy - r, 2 * r, 2 * r, ACCENT, BLOCK if k < 0.5 else 2)
+        if k < 0.35:
+            gfx.fill(cx - BLOCK * 2, cy - BLOCK * 2, BLOCK * 4, BLOCK * 4, WHITE)
+        d = r + BLOCK * 2
+        for dx, dy in ((1, 1), (-1, 1), (1, -1), (-1, -1)):
+            for j in range(2):
+                gfx.fill(cx + dx * (d + j * BLOCK) - BLOCK // 2, cy + dy * (d + j * BLOCK) - BLOCK // 2,
+                         BLOCK, BLOCK, ACCENT)
 
 
 class Spark(Effect):

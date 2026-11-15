@@ -2,6 +2,8 @@
 from pico2d import *
 
 import sys
+import random
+import pico2d.pico2d
 import game_framework
 import gfx
 import fs
@@ -28,6 +30,8 @@ monsters = []
 bullets = []
 effects = []
 spawner = None
+hitstop = 0.0                      # 맞는 순간 세상이 잠깐 멈춘다 (남은 초)
+shake_t, shake_amp = 0.0, 0         # 화면 흔들림
 checkpoint = (160, TASKBAR_H)      # HP 0 → 블루스크린 → 재부팅 뒤 여기서 다시 시작
 section = None
 TUTORIAL = True                    # False면 시작 경고창 없이 (테스트용)
@@ -150,6 +154,10 @@ def right_down(mx, my):
         t = player.throw(mx, my)
         if t:
             thrown.append(t)
+        elif player.dash(mx, my):
+            px, py = player.center()
+            effects.append(Spark(player.win if player.inside else player.layer, px, py - 20, WHITE, 6,
+                                 clip=player.inside))
         return
     shell.close_menu()
     start.open = False
@@ -279,8 +287,12 @@ def handle_events():
 
 
 def update():
-    global cursor_hidden, dead_t
+    global cursor_hidden, dead_t, hitstop, shake_t
     dt = min(game_framework.frame_time, 1 / 30)
+    shake_t = max(0.0, shake_t - dt)
+    if hitstop > 0:
+        hitstop -= dt                   # 멈춘 동안은 아무것도 움직이지 않는다
+        return
     wm.update(dt)
     box = textbox.focus
     if box is not None:
@@ -315,6 +327,14 @@ def update():
 
 
 # ---------------------------------------------------------------- 전투
+def impact(stop, shake, amp):
+    """타격감: 잠깐 멈춤 + 화면 흔들림 (더 센 쪽을 남긴다)"""
+    global hitstop, shake_t, shake_amp
+    hitstop = max(hitstop, stop)
+    shake_t = max(shake_t, shake)
+    shake_amp = max(shake_amp if shake_t > 0 else 0, amp)
+
+
 def poke(mx, my):
     """기본 무기 찌르기: 창 안이면 몬스터를, 창 밖이면 창 테두리를 찌른다"""
     tip = player.poke(mx, my)
@@ -332,8 +352,21 @@ def poke(mx, my):
             if l - 12 <= tx <= l + w + 12 and b - 12 <= ty <= b + h + 12:
                 m.hit(POKE_DAMAGE, 'poke', player.center()[0])
                 effects.append(Spark(m.win, tx, ty))
+                impact(0.03, 0.08, 2)
                 effects.append(Popup(m.win, *m.center(), str(POKE_DAMAGE), (255, 200, 0)))
-                break
+                return
+        # 안쪽에서 창 테두리(내용 영역 가장자리)를 찔렀으면 금이 가고, 세 번째에 깨고 나간다
+        win = player.win
+        cl, cb, cw, ch = win.client_rect()
+        edge = 10
+        if cl + edge <= tx <= cl + cw - edge and cb + edge <= ty <= cb + ch - edge:
+            return
+        x, y = min(max(tx, cl), cl + cw), min(max(ty, cb), cb + ch)
+        effects.append(Spark(win, x, y, (120, 120, 120), clip=False))
+        if win.crack(x, y) >= BREAK_HITS:
+            effects.append(Ring(win, x, y, 40, (60, 60, 60), clip=False))
+            win.shatter()
+            player.break_out(win, (x, y))
         return
     win = wm.hit(tx, ty)[0]
     if win is None or win in player.ghosts:
@@ -356,6 +389,7 @@ def overlap(a, b):
 
 def explode(win, x, y, radius, damage):
     effects.append(Ring(win, x, y, radius))
+    impact(0.08, 0.35, 10)
     effects.append(Spark(win, x, y, (255, 140, 0), 8))
     px, py = player.center()
     if player.win is win and (px - x) ** 2 + (py - y) ** 2 <= radius ** 2:
@@ -374,6 +408,7 @@ def hurt_player(damage, from_x):
     if player.hurt(damage, from_x):
         px, py = player.center()
         effects.append(Spark(player.win if player.inside else player.layer, px, py, CLOSE_RED, clip=player.inside))
+        impact(0.05, 0.18, 5)
         effects.append(Popup(player.win, px, py + 44, '-%d' % damage))
         return True
     return False
@@ -388,8 +423,11 @@ def fight():
                 m.hit(t.damage, t.name, t.x)
                 t.struck(m)
                 mx, my = m.center()
-                effects.append(Spark(m.win, mx, my))
-                effects.append(Popup(m.win, mx, my + 24, str(t.damage), (255, 200, 0)))
+                heavy = t.name == 'close'
+                effects.append(Spark(m.win, mx, my, CLOSE_RED if heavy else (255, 200, 0), 10))
+                effects.append(Ring(m.win, mx, my, 34, WHITE))
+                effects.append(Popup(m.win, mx, my + 24, str(t.damage), (255, 200, 0), 22))
+                impact(0.07 if heavy else 0.05, 0.2, 7 if heavy else 5)
     if not player.inside or player.dead:
         return
     body = (player.x, player.y, 48, 64)
@@ -434,6 +472,16 @@ def draw_layer(win):
 
 
 def render():
+    if shake_t > 0:
+        # SDL 뷰포트는 음수 위치를 못 받아서, 0~진폭 사이로만 밀고 드러난 가장자리는 검게 둔다
+        amp = max(1, int(shake_amp * min(1.0, shake_t / 0.2)))
+        gfx.fill(0, 0, W, H, BLACK)
+        SDL_RenderSetViewport(pico2d.pico2d.renderer, SDL_Rect(random.randint(0, amp), random.randint(0, amp), W, H))
+    draw_scene()
+    SDL_RenderSetViewport(pico2d.pico2d.renderer, None)
+
+
+def draw_scene():
     desktop.draw()
     draw_layer(None)
     wm.draw(draw_layer)

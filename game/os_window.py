@@ -203,6 +203,7 @@ class WindowManager:
         self.drag = None               # ('move', 창, 시작 마우스, 시작 사각형) / ('resize', 창, 가장자리, ...)
         self.last_title_click = (None, -1.0)
         self.cascade = 0
+        self.capture = None            # 창 안에서 누른 채 끄는 중인 창 (그림판 그리기 등)
 
     # ---------------------------------------------------------------- 열기 · 닫기 · 순서
     def find(self, key):
@@ -279,6 +280,10 @@ class WindowManager:
         return 'arrow'
 
     def mouse_move(self, mx, my):
+        if self.capture:
+            if self.capture in self.windows:
+                self.capture.app.mouse_drag(mx, my)
+            return
         if self.drag:
             kind, win, extra, (sx, sy), start = self.drag
             dx, dy = mx - sx, my - sy
@@ -346,10 +351,15 @@ class WindowManager:
             self.drag = ('move', win, None, (mx, my), start)
         elif kind == 'client':
             win.app.mouse_down(mx, my, now)
+            self.capture = win
         return True
 
     def mouse_up(self, mx, my):
         self.drag = None
+        if self.capture:
+            if self.capture in self.windows:
+                self.capture.app.mouse_up(mx, my)
+            self.capture = None
         if self.pressed:
             win, name = self.pressed
             self.pressed = None

@@ -28,6 +28,13 @@ class App:
     def mouse_move(self, mx, my):
         pass
 
+    def mouse_drag(self, mx, my):
+        """창 안에서 누른 채 움직임 (창 밖으로 나가도 계속 온다)"""
+        pass
+
+    def mouse_up(self, mx, my):
+        pass
+
     def context(self, mx, my):
         return None
 
@@ -214,47 +221,6 @@ def draw_dino(l, b, px, color=(83, 83, 83)):
                 gfx.fill(l + c * px, b + (rows - 1 - r) * px, px, px, color)
 
 
-# ==================================================================== 그림판
-class Paint(App):
-    group = 'paint'
-    key, title, icon = 'paint', '제목 없음 - 그림판', 'paint'
-    size = (860, 600)
-
-    def draw(self, l, b, w, h, active):
-        top = b + h
-        gfx.fill(l, b, w, h, (201, 211, 226))
-        gfx.fill(l, top - 24, w, 24, WHITE)
-        gfx.fill(l, top - 24, 50, 24, (25, 121, 202))
-        gfx.text('파일', l + 25, top - 12, 12, WHITE, align='center')
-        gfx.text('홈', l + 70, top - 12, 12)
-        gfx.text('보기', l + 104, top - 12, 12)
-        ry = top - 24 - 92
-        gfx.fill(l, ry, w, 92, (245, 246, 247))
-        gfx.line(l, ry, l + w, ry, (218, 219, 220))
-        groups = (('클립보드', 70), ('이미지', 110), ('도구', 120), ('브러시', 60), ('도형', 170), ('크기', 50), ('색', 240))
-        x = l + 6
-        for name, gw in groups:
-            gfx.text(name, x + gw / 2, ry + 10, 12, (90, 90, 90), align='center')
-            gfx.line(x + gw + 3, ry + 6, x + gw + 3, ry + 86, (226, 227, 228))
-            if name == '도구':
-                for i in range(6):
-                    tx, ty = x + 12 + (i % 3) * 32, ry + 66 - (i // 3) * 28
-                    gfx.frame(tx, ty - 10, 24, 22, (200, 200, 200))
-                    if i == 1:
-                        gfx.fill(tx + 4, ty - 6, 16, 14, (60, 120, 200))     # 페인트통
-            if name == '색':
-                cols = [(0, 0, 0), (127, 127, 127), (136, 0, 21), (237, 28, 36), (255, 127, 39), (255, 242, 0),
-                        (34, 177, 76), (0, 162, 232), (63, 72, 204), (163, 73, 164)]
-                for i, c in enumerate(cols):
-                    gfx.fill(x + 10 + i * 22, ry + 56, 18, 18, c)
-                    gfx.frame(x + 10 + i * 22, ry + 56, 18, 18, (160, 160, 160))
-            x += gw + 8
-        cw, chh = min(w - 20, 640), min(ry - b - 40, 400)
-        gfx.fill(l + 6, ry - 6 - chh, cw, chh, WHITE)
-        gfx.fill(l, b, w, 24, (240, 240, 240))
-        gfx.text('%d × %d픽셀' % (cw, chh), l + 200, b + 12, 12)
-
-
 # ==================================================================== Visual Studio Code
 CODE = [
     [('def ', (86, 156, 214)), ('escape', (220, 220, 170)), ('(pointer):', (212, 212, 212))],
@@ -338,4 +304,4 @@ class Terminal(App):
 
 
 # ==================================================================== 프로그램 목록
-APPS = {'paint': Paint, 'vscode': VSCode, 'kakao': Kakao, 'terminal': Terminal}
+APPS = {'vscode': VSCode, 'kakao': Kakao, 'terminal': Terminal}

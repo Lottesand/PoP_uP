@@ -29,8 +29,10 @@ check('other folders monsters inactive', all(m.win is None for m in other))
 check('bugs are scattered top-down (no gravity)', len({round(m.ry) for m in bugs}) > 1)
 # 창 안으로 들어가서 바닥에 서기
 l, b, w, h = win.rect(); P.x, P.y = l + 300, b + 40
-P.enter(win); step(1.5)
+P.enter(win); P.invincible = 99              # 착지만 보려고 잠깐 무적 (버그가 이제 사방에서 다가온다)
+step(1.5)
 check('player lands on explorer floor (status bar top)', P.mode == 'on' and abs(P.y - win.app.floor[2]) < 1)
+P.invincible = 0
 # 버그와 닿으면 데미지 10
 hp = P.hp
 for _ in range(400):
@@ -108,6 +110,8 @@ check('another bug 3s later', sum(1 for m in pm.monsters if m.folder is dl) == 2
 step(30)
 dl_bugs = [m for m in pm.monsters if m.folder is dl]
 check('at most 7 bugs per folder', len(dl_bugs) == 7)
+check('bugs spread over the folder (came from different edges)',
+      len({(round(m.rx / 200), round(m.ry / 120)) for m in dl_bugs}) > 2)
 # 창 안에 들어가면 사방에서 포인터 쪽으로 기어온다
 P.enter(dwin); P.invincible = 99
 def dist(m):
@@ -116,7 +120,6 @@ def dist(m):
 d0 = sum(dist(m) for m in dl_bugs)
 step(1.5)
 check('bugs crawl toward the pointer', sum(dist(m) for m in dl_bugs) < d0 * 0.8)
-check('bugs come from different directions', len({round(m.ry / 60) for m in dl_bugs}) > 2)
 level.SPAWNING = False
 close_canvas()
 print('%d/%d passed' % (sum(ok), len(ok)))

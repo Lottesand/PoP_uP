@@ -2,6 +2,7 @@
 import fs
 import apps
 import browser                  # apps.APPS['browser']를 채운다
+import paint                    # apps.APPS['paint']를 채운다
 from context_menu import ContextMenu
 
 wm = None          # play_mode가 init에서 넣어 준다
